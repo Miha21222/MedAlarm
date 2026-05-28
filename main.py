@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from app.bot import create_bot_and_dispatcher
+from app.bot import create_bot_and_dispatcher, setup_bot_commands
 from app.config import load_settings
 from app.database.session import init_db
 from app.scheduler.jobs import ReminderScheduler
@@ -21,6 +21,7 @@ async def run() -> None:
     )
     await init_db()
     bot, dp = create_bot_and_dispatcher(settings)
+    await setup_bot_commands(bot)
 
     reminder_scheduler = ReminderScheduler()
     set_scheduler(reminder_scheduler)
@@ -35,4 +36,3 @@ async def run() -> None:
 
 if __name__ == "__main__":
     asyncio.run(run())
-

@@ -3,9 +3,10 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.database.models import Base, Medicine, MedicineSchedule, User
+from app.database.models import Base, Medicine, MedicineSchedule, ReminderDispatchLog, User
 from app.scheduler.jobs import ReminderScheduler
 
 
@@ -28,7 +29,7 @@ async def test_send_reminder_sends_message_without_lazy_loading_error(monkeypatc
         user = User(telegram_id=555001, timezone="UTC")
         session.add(user)
         await session.flush()
-        medicine = Medicine(user_id=user.id, name="Магний", dosage_text="1 таблетка", is_active=True)
+        medicine = Medicine(user_id=user.id, name="РњР°РіРЅРёР№", dosage_text="1 С‚Р°Р±Р»РµС‚РєР°", is_active=True)
         session.add(medicine)
         await session.flush()
         schedule = MedicineSchedule(
@@ -62,7 +63,22 @@ async def test_send_reminder_sends_message_without_lazy_loading_error(monkeypatc
     await scheduler._send_reminder(medicine_id=medicine_id, schedule_id=schedule_id)
 
     assert len(bot.messages) == 1
-    assert "Пора принять лекарство" in bot.messages[0]["text"]
+    callback_data = bot.messages[0]["reply_markup"].inline_keyboard[0][0].callback_data
+    assert callback_data is not None
+    scheduled_ts = int(callback_data.split(":")[-1])
+
+    async with session_factory() as verify_session:
+        dispatch_logs = (
+            await verify_session.execute(
+                select(ReminderDispatchLog).where(ReminderDispatchLog.medicine_id == medicine_id)
+            )
+        ).scalars().all()
+
+    assert len(dispatch_logs) == 1
+    assert dispatch_logs[0].schedule_id == schedule_id
+    assert dispatch_logs[0].scheduled_ts == scheduled_ts
+
+    assert bot.messages[0]["text"]
+    assert "15:27" in bot.messages[0]["text"]
 
     await engine.dispose()
-

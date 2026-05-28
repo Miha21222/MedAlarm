@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -42,6 +42,9 @@ class Medicine(Base):
         back_populates="medicine", cascade="all, delete-orphan"
     )
     intake_logs: Mapped[list["IntakeLog"]] = relationship(back_populates="medicine", cascade="all, delete-orphan")
+    reminder_dispatch_logs: Mapped[list["ReminderDispatchLog"]] = relationship(
+        back_populates="medicine", cascade="all, delete-orphan"
+    )
 
 
 class MedicineSchedule(Base):
@@ -56,6 +59,9 @@ class MedicineSchedule(Base):
     remind_until_confirmed: Mapped[bool] = mapped_column(Boolean, default=True)
 
     medicine: Mapped[Medicine] = relationship(back_populates="schedules")
+    reminder_dispatch_logs: Mapped[list["ReminderDispatchLog"]] = relationship(
+        back_populates="schedule", cascade="all, delete-orphan"
+    )
 
 
 class IntakeLog(Base):
@@ -69,3 +75,15 @@ class IntakeLog(Base):
 
     medicine: Mapped[Medicine] = relationship(back_populates="intake_logs")
 
+
+class ReminderDispatchLog(Base):
+    __tablename__ = "reminder_dispatch_logs"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    medicine_id: Mapped[int] = mapped_column(ForeignKey("medicines.id"), index=True)
+    schedule_id: Mapped[int] = mapped_column(ForeignKey("medicine_schedules.id"), index=True)
+    scheduled_ts: Mapped[int] = mapped_column(Integer, index=True)
+    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    medicine: Mapped[Medicine] = relationship(back_populates="reminder_dispatch_logs")
+    schedule: Mapped[MedicineSchedule] = relationship(back_populates="reminder_dispatch_logs")

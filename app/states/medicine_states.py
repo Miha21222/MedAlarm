@@ -11,3 +11,11 @@ class AddMedicineStates(StatesGroup):
     comment = State()
     confirm = State()
 
+
+class EditMedicineStates(StatesGroup):
+    name = State()
+    dosage = State()
+    times = State()
+    days = State()
+    repeat = State()
+    comment = State()

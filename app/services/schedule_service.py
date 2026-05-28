@@ -41,12 +41,21 @@ class ScheduleService:
             select(Medicine)
             .where(Medicine.user_id == user_id, Medicine.is_active.is_(True))
             .options(selectinload(Medicine.schedules))
-            .order_by(Medicine.name.asc())
+            .order_by(Medicine.id.asc())
         )
         medicines = list(medicines_result.scalars())
         due_medicines: list[Medicine] = []
         for medicine in medicines:
             if any(is_due_today(schedule.days_of_week, target_date) for schedule in medicine.schedules):
                 due_medicines.append(medicine)
+        due_medicines.sort(
+            key=lambda medicine: (
+                min(
+                    schedule.time
+                    for schedule in medicine.schedules
+                    if is_due_today(schedule.days_of_week, target_date)
+                ),
+                medicine.id,
+            )
+        )
         return due_medicines
-

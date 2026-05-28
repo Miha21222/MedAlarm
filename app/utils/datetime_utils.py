@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -63,6 +63,19 @@ def normalize_time_string(time_string: str) -> str:
     return f"{hour:02d}:{minute:02d}"
 
 
+def parse_times_input(times_input: str) -> list[str]:
+    if not times_input:
+        raise ValueError("Нужно указать хотя бы одно время.")
+    parts = [part.strip() for part in times_input.split(",") if part.strip()]
+    if not parts:
+        raise ValueError("Нужно указать хотя бы одно время.")
+    return sorted({normalize_time_string(part) for part in parts})
+
+
+def format_times(times: list[str]) -> str:
+    return ", ".join(sorted(times))
+
+
 def parse_days_input(days_input: str) -> list[int]:
     if not days_input:
         raise ValueError("Нужно указать дни недели.")
@@ -115,4 +128,3 @@ def period_start(period: str, now_utc: datetime) -> datetime:
     if period == "month":
         return now_utc - timedelta(days=30)
     return now_utc - timedelta(days=7)
-

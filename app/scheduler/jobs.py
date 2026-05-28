@@ -13,6 +13,7 @@ from sqlalchemy.orm import selectinload
 from app.database.models import Medicine, MedicineSchedule, User
 from app.database.session import session_scope
 from app.keyboards.inline import reminder_keyboard
+from app.services.intake_service import IntakeService
 from app.services.schedule_service import ScheduleService
 from app.utils.datetime_utils import parse_time_string
 
@@ -74,6 +75,7 @@ class ReminderScheduler:
     async def _send_reminder(self, medicine_id: int, schedule_id: int) -> None:
         if self._bot is None:
             return
+        scheduled_ts = int(datetime.now(UTC).timestamp())
         async with session_scope() as session:
             result = await session.execute(
                 select(MedicineSchedule)
@@ -90,7 +92,6 @@ class ReminderScheduler:
             medicine = schedule.medicine
             user = medicine.user
 
-        scheduled_ts = int(datetime.now(UTC).timestamp())
         text = (
             f"Пора принять лекарство: {medicine.name}\n"
             f"Дозировка: {medicine.dosage_text}\n"
@@ -101,3 +102,10 @@ class ReminderScheduler:
             text=text,
             reply_markup=reminder_keyboard(medicine_id=medicine.id, schedule_id=schedule.id, scheduled_ts=scheduled_ts),
         )
+        async with session_scope() as session:
+            await IntakeService.log_dispatch(
+                session=session,
+                medicine_id=medicine.id,
+                schedule_id=schedule.id,
+                scheduled_ts=scheduled_ts,
+            )
