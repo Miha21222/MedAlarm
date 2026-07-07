@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": ".test-dist",
+    "module": "CommonJS",
+    "moduleResolution": "Node"
+  },
+  "include": [
+    "src/features/medicines/localMedicines.ts",
+    "src/types.ts",
+    "src/authGate.ts",
+    "src/telegramWebApp.ts",
+    "src/hooks/usePersistentEnumState.ts",
+    "tests/**/*.ts"
+  ]
+}
