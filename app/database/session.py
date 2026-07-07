@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.config import load_settings
+from app.database.migrations import ensure_sqlite_compatibility
 from app.database.models import Base
 
 settings = load_settings()
@@ -15,6 +16,7 @@ SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=
 async def init_db() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await ensure_sqlite_compatibility(conn)
 
 
 @asynccontextmanager
@@ -28,4 +30,3 @@ async def session_scope() -> AsyncSession:
         raise
     finally:
         await session.close()
-

@@ -19,16 +19,36 @@ class IntakeService:
         medicine_id: int,
         schedule_id: int,
         scheduled_ts: int,
+        chat_id: int | None = None,
+        message_id: int | None = None,
     ) -> ReminderDispatchLog:
         dispatch = ReminderDispatchLog(
             medicine_id=medicine_id,
             schedule_id=schedule_id,
             scheduled_ts=scheduled_ts,
+            chat_id=chat_id,
+            message_id=message_id,
             sent_at=datetime.now(UTC),
         )
         session.add(dispatch)
         await session.flush()
         return dispatch
+
+    @staticmethod
+    async def get_dispatch(
+        session: AsyncSession,
+        *,
+        medicine_id: int,
+        schedule_id: int,
+        scheduled_ts: int,
+    ) -> ReminderDispatchLog | None:
+        return await session.scalar(
+            select(ReminderDispatchLog).where(
+                ReminderDispatchLog.medicine_id == medicine_id,
+                ReminderDispatchLog.schedule_id == schedule_id,
+                ReminderDispatchLog.scheduled_ts == scheduled_ts,
+            )
+        )
 
     @staticmethod
     async def has_dispatch(

@@ -1,5 +1,52 @@
 # MedAlarm
 
+## Telegram Mini App
+
+MedAlarm now includes a full-stack Telegram Mini App:
+
+- `frontend/` is the React + TypeScript + Vite interface.
+- `app/api/` is the FastAPI authentication, sync, dashboard, history, and
+  settings API.
+- `python -m app.bot_main` runs Telegram long polling.
+- `python -m app.scheduler` runs reminder scheduling.
+- `python -m app.runtime` supervises the API plus the existing bot/scheduler
+  runtime for Docker. Bot and scheduler intentionally remain together until
+  snoozes are persisted rather than held in process memory.
+
+### Frontend development
+
+```powershell
+cd frontend
+npm.cmd install
+npm.cmd run dev
+npm.cmd run test:local
+npm.cmd run build
+```
+
+Vite development mode uses a local Telegram identity stub and browser
+`localStorage`. Production builds require Telegram `initData`.
+
+### Backend development
+
+```powershell
+uvicorn app.api.main:app --reload --host 0.0.0.0 --port 8000
+python -m app.bot_main
+python -m app.scheduler
+```
+
+Add these values to the existing root `.env`:
+
+```dotenv
+JWT_SECRET=replace-with-a-long-random-secret
+JWT_EXPIRE_MINUTES=1440
+MINI_APP_URL=https://your-pages-host/MedAlarm/
+CORS_ALLOWED_ORIGINS=https://your-pages-host
+```
+
+The legacy SQLite schema is upgraded in place on startup. Medicines receive
+stable client IDs for local-first synchronization; reminder dispatch and intake
+records remain server-authoritative.
+
 Telegram-бот для напоминаний о приёме лекарств (MVP на `aiogram 3`, `SQLite`, `SQLAlchemy`, `APScheduler`).
 
 ## Возможности MVP
@@ -35,4 +82,3 @@ Telegram-бот для напоминаний о приёме лекарств (
 
 ## Важное ограничение
 Бот не даёт медицинские рекомендации, не подбирает дозировки и не меняет схему лечения. Он только напоминает по данным, которые ввёл пользователь.
-

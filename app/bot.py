@@ -17,6 +17,7 @@ async def setup_bot_commands(bot: Bot) -> None:
     await bot.set_my_commands(
         [
             BotCommand(command="start", description="Запустить бота"),
+            BotCommand(command="app", description="Открыть MedAlarm"),
             BotCommand(command="menu", description="Открыть главное меню"),
         ]
     )

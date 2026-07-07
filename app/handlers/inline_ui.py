@@ -457,6 +457,7 @@ async def _refresh_without_source(state: FSMContext, message: Message, telegram_
 
 
 @router.message(Command("start"))
+@router.message(Command("app"))
 async def start(message: Message, state: FSMContext) -> None:
     if message.from_user is None:
         return

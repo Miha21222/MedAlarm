@@ -1,14 +1,18 @@
 from __future__ import annotations
 
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
+from app.config import load_settings
 from app.database.models import Medicine
 
 
-def open_menu_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="📋 Открыть меню", callback_data="ui:menu")]]
-    )
+def open_menu_keyboard(mini_app_url: str | None = None) -> InlineKeyboardMarkup:
+    url = load_settings().mini_app_url if mini_app_url is None else mini_app_url
+    rows: list[list[InlineKeyboardButton]] = []
+    if url.startswith("https://"):
+        rows.append([InlineKeyboardButton(text="💊 Открыть MedAlarm", web_app=WebAppInfo(url=url))])
+    rows.append([InlineKeyboardButton(text="📋 Открыть меню", callback_data="ui:menu")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def main_menu_keyboard() -> InlineKeyboardMarkup:

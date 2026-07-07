@@ -97,7 +97,7 @@ class ReminderScheduler:
             f"Дозировка: {medicine.dosage_text}\n"
             f"Время по расписанию: {schedule.time}"
         )
-        await self._bot.send_message(
+        sent_message = await self._bot.send_message(
             chat_id=user.telegram_id,
             text=text,
             reply_markup=reminder_keyboard(medicine_id=medicine.id, schedule_id=schedule.id, scheduled_ts=scheduled_ts),
@@ -108,4 +108,6 @@ class ReminderScheduler:
                 medicine_id=medicine.id,
                 schedule_id=schedule.id,
                 scheduled_ts=scheduled_ts,
+                chat_id=user.telegram_id,
+                message_id=getattr(sent_message, "message_id", None),
             )
