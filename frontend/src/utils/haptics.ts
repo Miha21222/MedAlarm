@@ -22,10 +22,16 @@ export function setHapticsEnabled(enabled: boolean): void {
   window.dispatchEvent(new CustomEvent(HAPTICS_CHANGED_EVENT));
 }
 
+function getSupportedHaptics() {
+  const webApp = getTelegramWebApp();
+  if (webApp?.isVersionAtLeast && !webApp.isVersionAtLeast("6.1")) return undefined;
+  return webApp?.HapticFeedback;
+}
+
 export function hapticImpact(style: TelegramHapticImpactStyle = "medium"): void {
   if (!isHapticsEnabled()) return;
   try {
-    getTelegramWebApp()?.HapticFeedback?.impactOccurred?.(style);
+    getSupportedHaptics()?.impactOccurred?.(style);
   } catch {
     /* haptics are best-effort; never let them break an action */
   }
@@ -34,7 +40,7 @@ export function hapticImpact(style: TelegramHapticImpactStyle = "medium"): void 
 export function hapticNotification(type: TelegramHapticNotificationType): void {
   if (!isHapticsEnabled()) return;
   try {
-    getTelegramWebApp()?.HapticFeedback?.notificationOccurred?.(type);
+    getSupportedHaptics()?.notificationOccurred?.(type);
   } catch {
     /* best-effort */
   }
@@ -43,7 +49,7 @@ export function hapticNotification(type: TelegramHapticNotificationType): void {
 export function hapticSelection(): void {
   if (!isHapticsEnabled()) return;
   try {
-    getTelegramWebApp()?.HapticFeedback?.selectionChanged?.();
+    getSupportedHaptics()?.selectionChanged?.();
   } catch {
     /* best-effort */
   }

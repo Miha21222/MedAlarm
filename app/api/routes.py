@@ -3,7 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from pydantic import ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -13,16 +14,22 @@ from app.api.dependencies import get_current_user, get_session
 from app.api.schemas import (
     MedicineBatchPayload,
     MedicinePayload,
+    FeedbackCreate,
     ReminderActionPayload,
     SettingsPatch,
     TelegramAuthRequest,
 )
 from app.config import load_settings
 from app.database.models import IntakeLog, Medicine, ReminderDispatchLog, User
+from app.services.feedback_service import (
+    ALLOWED_IMAGE_TYPES,
+    MAX_SCREENSHOT_BYTES,
+    create_feedback,
+    notify_feedback,
+)
 from app.services.intake_service import IntakeService
 from app.services.medicine_sync_service import MedicineSyncPayload, MedicineSyncService, ScheduleSyncPayload
 from app.services.reminder_action_service import ReminderActionService
-from app.services.schedule_service import ScheduleService
 from app.services.user_service import UserService
 from app.utils.datetime_utils import validate_timezone
 
@@ -175,15 +182,26 @@ async def dashboard_today(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, object]:
     local_date = datetime.now(ZoneInfo(user.timezone)).date()
-    medicines = await ScheduleService.get_user_today_medicines(session, user.id, local_date)
-    statuses = await IntakeService.today_status_by_medicine(session, user.id, local_date, user.timezone)
+    doses = await IntakeService.today_doses(session, user.id, local_date, user.timezone)
     return {
         "items": [
             {
-                **_serialize_medicine(medicine),
-                "status": statuses.get(medicine.id, "pending"),
+                **_serialize_medicine(dose.medicine),
+                "dose_key": f"{dose.medicine.client_medicine_id}:{dose.schedule.id}:{local_date.isoformat()}",
+                "schedules": [
+                    {
+                        "time": dose.schedule.time,
+                        "days_of_week": dose.schedule.days_of_week,
+                        "snooze_minutes": dose.schedule.snooze_minutes,
+                        "remind_until_confirmed": dose.schedule.remind_until_confirmed,
+                    }
+                ],
+                "scheduled_at": dose.scheduled_at,
+                "status": dose.status,
+                "event_id": dose.event_id,
+                "actionable": dose.actionable,
             }
-            for medicine in medicines
+            for dose in doses
         ]
     }
 
@@ -218,10 +236,17 @@ async def history(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, object]:
     logs = await IntakeService.history(session, user.id, period=period)
+    dispatch_ids = [log.reminder_event_id for log in logs if log.reminder_event_id is not None]
+    event_ids: dict[int, str] = {}
+    if dispatch_ids:
+        dispatches = await session.execute(
+            select(ReminderDispatchLog).where(ReminderDispatchLog.id.in_(dispatch_ids))
+        )
+        event_ids = {dispatch.id: dispatch.event_id for dispatch in dispatches.scalars()}
     return {
         "items": [
             {
-                "event_id": log.reminder_event_id,
+                "event_id": event_ids.get(log.reminder_event_id) if log.reminder_event_id is not None else None,
                 "medicine": log.medicine.name,
                 "scheduled_at": log.scheduled_at,
                 "responded_at": log.responded_at,
@@ -248,3 +273,55 @@ async def reminder_action(
         "status": result.status,
         "intake_id": result.intake_id,
     }
+
+
+@router.post("/feedback")
+async def submit_feedback(
+    kind: str = Form(...),
+    rating: int | None = Form(default=None),
+    message: str | None = Form(default=None),
+    diagnostic_context: str | None = Form(default=None),
+    screenshot: UploadFile | None = File(default=None),
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, int]:
+    try:
+        payload = FeedbackCreate(
+            kind=kind,
+            rating=rating,
+            message=message,
+            diagnostic_context=diagnostic_context,
+        )
+    except ValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
+
+    image_bytes: bytes | None = None
+    image_extension: str | None = None
+    if screenshot is not None:
+        image_extension = ALLOWED_IMAGE_TYPES.get(screenshot.content_type or "")
+        if image_extension is None:
+            raise HTTPException(status_code=400, detail="Screenshot must be JPEG, PNG, or WebP")
+        image_bytes = await screenshot.read(MAX_SCREENSHOT_BYTES + 1)
+        if not image_bytes:
+            raise HTTPException(status_code=400, detail="Screenshot is empty")
+        if len(image_bytes) > MAX_SCREENSHOT_BYTES:
+            raise HTTPException(status_code=413, detail="Screenshot is larger than 8 MB")
+
+    feedback = await create_feedback(
+        session,
+        user,
+        kind=payload.kind,
+        rating=payload.rating,
+        message=payload.message,
+        diagnostic_context=payload.diagnostic_context,
+        image_bytes=image_bytes,
+        image_extension=image_extension,
+    )
+    await notify_feedback(
+        feedback,
+        user,
+        load_settings(),
+        image_bytes=image_bytes,
+        image_filename=f"screenshot{image_extension}" if image_extension else None,
+    )
+    return {"id": feedback.id}

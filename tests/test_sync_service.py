@@ -5,7 +5,8 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.database.models import Medicine, ReminderDispatchLog, User
+from app.database.models import IntakeLog, Medicine, MedicineSchedule, ReminderDispatchLog, User
+from app.services.intake_service import IntakeService
 from app.services.medicine_sync_service import MedicineSyncPayload, MedicineSyncService, ScheduleSyncPayload
 from app.services.reminder_action_service import ReminderActionService
 
@@ -111,3 +112,48 @@ async def test_reminder_action_is_idempotent(db_session):
 
     assert first.intake_id == second.intake_id
     assert second.status == "taken"
+
+
+@pytest.mark.asyncio
+async def test_today_doses_keeps_multiple_schedule_slots_independent(db_session):
+    user = User(telegram_id=8104, timezone="UTC")
+    db_session.add(user)
+    await db_session.flush()
+    medicine = Medicine(user_id=user.id, name="D3", dosage_text="1")
+    medicine.schedules = [
+        MedicineSchedule(time="08:00", days_of_week="*"),
+        MedicineSchedule(time="20:00", days_of_week="*"),
+    ]
+    db_session.add(medicine)
+    await db_session.flush()
+    now = datetime.now(UTC)
+    dispatch = ReminderDispatchLog(
+        event_id="evt-morning",
+        medicine_id=medicine.id,
+        schedule_id=medicine.schedules[0].id,
+        scheduled_ts=int(now.timestamp()),
+        status="taken",
+        resolved_at=now,
+    )
+    db_session.add(dispatch)
+    await db_session.flush()
+    db_session.add(
+        IntakeLog(
+            medicine_id=medicine.id,
+            reminder_event_id=dispatch.id,
+            scheduled_at=now,
+            responded_at=now,
+            status="taken",
+        )
+    )
+    await db_session.flush()
+
+    doses = await IntakeService.today_doses(db_session, user.id, now.date(), "UTC")
+
+    assert [dose.schedule.time for dose in doses] == ["08:00", "20:00"]
+    assert doses[0].status == "taken"
+    assert doses[0].event_id == "evt-morning"
+    assert doses[0].actionable is False
+    assert doses[1].status == "pending"
+    assert doses[1].event_id is None
+    assert doses[1].actionable is False

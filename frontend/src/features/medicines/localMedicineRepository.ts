@@ -1,6 +1,7 @@
 import { hasAuthToken } from "../../api/client";
 import { bootstrapSync, syncMedicine, syncMedicineBatch } from "../../api/sync";
 import type { Medicine } from "../../types";
+import { isDemoModeEnabled } from "../demo/demoMode";
 import {
   createMedicine as buildMedicine,
   deleteMedicine as tombstoneMedicine,
@@ -11,6 +12,7 @@ import {
   updateMedicine as applyMedicineUpdate,
   writeMedicineStore,
 } from "./localMedicines";
+import { buildPreviewMedicines } from "./previewMedicines";
 
 function replaceMedicine(medicines: Medicine[], medicine: Medicine): Medicine[] {
   const next = medicines.filter((item) => item.client_medicine_id !== medicine.client_medicine_id);
@@ -22,6 +24,10 @@ function replaceMedicine(medicines: Medicine[], medicine: Medicine): Medicine[] 
 // per-record network call. Network failures are swallowed and the medicine is
 // marked "error" so the UI can surface it without blocking on connectivity.
 async function persistWithSync(medicine: Medicine): Promise<Medicine> {
+  // Demo mode is a read-only sandbox: edits to a demo medicine are reflected
+  // back to the caller (so the UI doesn't appear broken) but never written to
+  // the user's real store.
+  if (isDemoModeEnabled()) return medicine;
   writeMedicineStore(replaceMedicine(readMedicineStore(), medicine));
   if (!hasAuthToken()) return medicine;
   try {
@@ -37,10 +43,14 @@ async function persistWithSync(medicine: Medicine): Promise<Medicine> {
 }
 
 export function listLocalMedicines(): Medicine[] {
+  if (isDemoModeEnabled()) return sortMedicines(buildPreviewMedicines().filter(isMedicineVisible));
   return sortMedicines(readMedicineStore().filter(isMedicineVisible));
 }
 
 export function getLocalMedicine(clientMedicineId: string): Medicine | undefined {
+  if (isDemoModeEnabled()) {
+    return buildPreviewMedicines().find((item) => item.client_medicine_id === clientMedicineId);
+  }
   return readMedicineStore().find((item) => item.client_medicine_id === clientMedicineId);
 }
 

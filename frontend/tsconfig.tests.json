@@ -8,9 +8,16 @@
   },
   "include": [
     "src/features/medicines/localMedicines.ts",
+    "src/features/medicines/localIntakeHistory.ts",
+    "src/features/medicines/previewMedicines.ts",
+    "src/features/history/historyAnalysis.ts",
+    "src/features/demo/demoMode.ts",
     "src/types.ts",
     "src/authGate.ts",
     "src/telegramWebApp.ts",
+    "src/utils/haptics.ts",
+    "src/utils/dailyCompletion.ts",
+    "src/utils/dateTime.ts",
     "src/hooks/usePersistentEnumState.ts",
     "tests/**/*.ts"
   ]

@@ -49,4 +49,4 @@ async def test_legacy_sqlite_tables_receive_fullstack_columns(tmp_path):
 
     await engine.dispose()
     assert {"client_medicine_id", "updated_at", "deleted_at"} <= medicine_columns
-    assert {"event_id", "status", "chat_id", "message_id", "resolved_at"} <= dispatch_columns
+    assert {"event_id", "status", "chat_id", "message_id", "resolved_at", "snoozed_until"} <= dispatch_columns

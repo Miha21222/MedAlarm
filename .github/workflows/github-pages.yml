@@ -32,6 +32,15 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npm run test:local
+      - name: Validate production API URL
+        shell: bash
+        env:
+          API_URL: ${{ vars.VITE_API_BASE_URL }}
+        run: |
+          [[ "$API_URL" == https://*/api/v1 ]] || {
+            echo "VITE_API_BASE_URL must be an HTTPS URL ending in /api/v1"
+            exit 1
+          }
       - run: npm run build
         env:
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}

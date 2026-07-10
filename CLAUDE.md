@@ -6,6 +6,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 MedAlarm — a Telegram bot (Russian-language UI) that reminds users to take medicines on a schedule, now extended into a full-stack Telegram Mini App. Built with `aiogram 3`, `SQLite`/`aiosqlite`, `SQLAlchemy 2.0` (async), and `APScheduler` for the bot/scheduler surface, plus a `FastAPI` backend (`app/api/`) and a React/Vite frontend (`frontend/`) for the Mini App. MVP scope only: the app never gives medical advice, dosage suggestions, or treatment changes — it only reminds based on data the user entered.
 
+## Current Repository State (verified 2026-07-10)
+
+- Active branch: `feat-fullstack-mini-app`; `HEAD` is `28f4760`, with the
+  visible `main`/`origin/main` base at `c124aa7`.
+- This is an intentionally dirty feature checkout. At this snapshot it has 45
+  tracked changes and 29 untracked paths across backend, frontend, deployment,
+  CI, and tests. Inspect overlapping diffs, preserve unrelated work, and never
+  reset the tree merely to make it clean.
+- If Windows sandbox ownership makes Git report a dubious repository, use
+  `git -c safe.directory=C:/Users/Admin/Documents/MedAlarm ...` for that
+  command instead of changing global configuration.
+- `CONTEXT.md` is the shared dated handoff. This file is Claude's complete
+  working context and must remain synchronized with current architecture.
+- `CHANGELOG.md` records the full production-candidate scope;
+  `deploy/README.md` contains the production-readiness checklist.
+- `README.md` has a legacy Russian section that can appear as mojibake in some
+  read surfaces. Do not reproduce the broken encoding.
+- `POCKETMIND_REFERENCE.md` is design background, not authoritative MedAlarm
+  behavior.
+
 ## Commands
 
 ```bash
@@ -36,6 +56,12 @@ npm run test:local
 
 CI: `.github/workflows/backend-tests.yml` runs `pytest` on changes to `app/**`/`tests/**`/`requirements.txt`. `.github/workflows/github-pages.yml` builds and deploys `frontend/` to GitHub Pages on push to `main`. There is no linter/formatter configured for either side — don't invent verification commands for tools this repo doesn't use.
 
+Backend CI also builds the Docker image and validates production Compose.
+Pages CI runs `npm run test:local`, requires an HTTPS `VITE_API_BASE_URL`
+ending in `/api/v1`, and builds with `VITE_BASE_PATH=/MedAlarm/`. Production
+operations, backups, restore, and rollback are documented in
+`deploy/README.md`.
+
 Config is read from environment variables via `.env` (see `app/config.py`): `BOT_TOKEN`, `DATABASE_URL` (or `DB_PATH`, default `./data/medalarm.db`), `DEFAULT_TIMEZONE`, `LOG_LEVEL`, `APP_ENV`, plus the Mini App additions `JWT_SECRET`, `JWT_EXPIRE_MINUTES`, `MINI_APP_URL`, `CORS_ALLOWED_ORIGINS`. **`JWT_SECRET` must be a real secret whenever `APP_ENV` is not `dev`** — `load_settings()` raises at startup otherwise rather than silently running with the insecure default.
 
 ## Architecture
@@ -58,8 +84,12 @@ FastAPI app (`app/api/main.py`), single router in `app/api/routes.py` (prefix `/
 
 ### Mini App frontend (`frontend/`)
 
-React + TypeScript + Vite. Deliberately structured like the sibling PocketMind project's frontend (see `POCKETMIND_REFERENCE.md` for the full comparison this was based on), but keeping MedAlarm's own hand-written `src/styles.css` design system (navy/teal palette derived from the MedAlarm logo, real Manrope/Nunito Sans fonts) rather than adopting Tailwind: `src/api/` (resource-split HTTP client — `client.ts`, `auth.ts`, `sync.ts`, `dashboard.ts`, `history.ts`, `settings.ts`), `src/features/medicines/` (`localMedicines.ts` pure logic + localStorage I/O, `localMedicineRepository.ts` network-aware sync orchestration with a concurrency-safe re-read-before-merge, `cache.ts` React Query wiring), `src/contexts/` (`AppSettingsContext`, `ToastContext`), `src/hooks/` (`useTelegramAuth`, `usePersistentEnumState`), `src/components/` (`Layout` shell, `MedicineCard`, `OpenInTelegram` gate screen, etc.), `src/pages/` (one file per route). `npm run dev:local` (Vite `--mode preview`) stubs Telegram auth entirely for UI work without a bot token. Medicines are local-first + synced (localStorage, client-generated UUIDs, last-write-wins merge); history/adherence are always fetched live from the backend with no local cache — this split is deliberate, not an oversight (see `POCKETMIND_REFERENCE.md`'s caution against treating local storage as an authoritative adherence log).
+React + TypeScript + Vite with MedAlarm's hand-written `src/styles.css` design system rather than Tailwind. `src/api/` contains resource-split auth, sync, dashboard, history, settings, reminder-action, and feedback clients. `src/features/medicines/` contains pure localStorage logic, network-aware last-write-wins sync, React Query wiring, per-form draft persistence, preview medicines, and isolated local intake history. `src/features/demo/` owns preview state; demo mode is configured only from `import.meta.env.DEV`, and production clears/rejects stale demo state. `src/features/history/` owns period/status filtering, grouping by day or medicine, and summaries. Current routes are dashboard, medicine list/create/detail/edit, history, settings, rating feedback, and bug reporting. `npm run dev:local` (Vite `--mode preview`) stubs Telegram auth for UI work without a bot token.
 
-**Known v1 gaps, not bugs**: the Mini App has no "mark taken/skipped" action of its own — that only works from the bot's reminder message today, because a dose can only be resolved once a `ReminderDispatchLog` exists for it, and the dashboard's "today" view doesn't yet expose the dispatch `event_id` needed to call the action endpoint from the Mini App. Schedules are daily-only in the Mini App's create/edit form even though the data model supports per-weekday lists.
+Medicines remain local-first and synchronized using client UUIDs and `updated_at`. Real Telegram/backend adherence is server-authoritative and tied to `ReminderDispatchLog.event_id`. The dashboard exposes Taken/Skipped buttons only for unresolved actionable dispatches; real actions go through `src/api/reminderActions.ts` and the shared backend `ReminderActionService`. Demo/offline fallback actions are idempotent isolated client data and must never be uploaded or described as real dispatch responses.
 
-**Tests** (`tests/`) use an in-memory SQLite DB per test via the `db_session` fixture in `conftest.py`. Async tests rely on `pytest-asyncio`. Frontend tests (`frontend/tests/`) use no framework — plain TypeScript compiled to CommonJS via `tsconfig.tests.json` and run with `node`, covering only pure-logic modules (`localMedicines`, `authGate`, `telegramWebApp`, `usePersistentEnumState`); there is no component/page-level frontend test coverage yet.
+Feedback and bug reports submit authenticated multipart data to `POST /api/v1/feedback`, persist in the `feedback` table, and relay best-effort to the configured Telegram forum chat (ratings topic 3, bugs topic 5). Bug screenshots are limited to JPEG/PNG/WebP and 8 MB. The frontend does not attach browser/device diagnostics. Telegram relay failure must not fail or erase the persisted submission.
+
+**Known v1 gaps, not bugs**: schedules are daily-oriented in the Mini App's create/edit form even though the data model supports per-weekday lists. The dashboard now exposes taken/skipped actions for doses backed by an unresolved `ReminderDispatchLog.event_id`; local preview/demo actions are isolated in local storage and must never be confused with server-authoritative adherence history.
+
+**Tests** (`tests/`) use an in-memory SQLite DB per test via the `db_session` fixture in `conftest.py`. Async tests rely on `pytest-asyncio`. Frontend tests (`frontend/tests/`) use no framework — plain TypeScript compiled to CommonJS via `tsconfig.tests.json` and run with `node`. They cover local medicines, preview/demo medicines, local intake history, daily completion, auth gating, Telegram helpers, haptics, persistent enum state, and history analysis; there is still no component/page-level frontend test coverage.

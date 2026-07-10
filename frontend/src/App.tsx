@@ -16,6 +16,8 @@ import { MedicineDetailPage } from "./pages/MedicineDetailPage";
 import { MedicineEditPage } from "./pages/MedicineEditPage";
 import { MedicineListPage } from "./pages/MedicineListPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { BugReportPage } from "./pages/BugReportPage";
+import { FeedbackRatingPage } from "./pages/FeedbackRatingPage";
 
 export default function App() {
   const auth = useTelegramAuth();
@@ -53,6 +55,8 @@ export default function App() {
             <Route path="/medicines/:medicineId/edit" element={<MedicineEditPage />} />
             <Route path="/history" element={<HistoryPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/settings/feedback" element={<FeedbackRatingPage />} />
+            <Route path="/settings/bug-report" element={<BugReportPage />} />
           </Routes>
         </Layout>
       </ToastProvider>

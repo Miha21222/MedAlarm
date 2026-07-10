@@ -49,8 +49,8 @@ async def reminder_action(callback: CallbackQuery) -> None:
         scheduler = get_scheduler()
         if scheduler:
             await scheduler.schedule_snooze(
-                medicine_id=medicine_id,
-                schedule_id=schedule_id,
+                event_id=dispatch.event_id,
+                user_id=user.id,
                 minutes=user.default_snooze_minutes,
             )
         await callback.answer(f"Напомню через {user.default_snooze_minutes} минут")

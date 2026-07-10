@@ -45,6 +45,7 @@ async def ensure_sqlite_compatibility(connection: AsyncConnection) -> None:
             "chat_id": "INTEGER",
             "message_id": "INTEGER",
             "resolved_at": "DATETIME",
+            "snoozed_until": "DATETIME",
         },
     )
     await _add_columns(
@@ -83,6 +84,12 @@ async def ensure_sqlite_compatibility(connection: AsyncConnection) -> None:
         text(
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_dispatch_event_id "
             "ON reminder_dispatch_logs(event_id)"
+        )
+    )
+    await connection.execute(
+        text(
+            "CREATE INDEX IF NOT EXISTS ix_reminder_dispatch_logs_snoozed_until "
+            "ON reminder_dispatch_logs(snoozed_until)"
         )
     )
     await connection.execute(

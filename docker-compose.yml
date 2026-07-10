@@ -8,12 +8,18 @@ services:
       DATABASE_URL: sqlite+aiosqlite:////app/data/medalarm.db
     expose:
       - "8000"
+    init: true
     volumes:
       - medalarm_data:/app/data
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    image: cloudflare/cloudflared:2026.6.0
     command: tunnel --no-autoupdate run
     environment:
       TUNNEL_TOKEN: ${TUNNEL_TOKEN}
@@ -22,6 +28,11 @@ services:
         condition: service_healthy
     profiles: ["production"]
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   medalarm_data:

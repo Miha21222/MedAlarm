@@ -1,9 +1,13 @@
-import { Activity, ArrowLeft, History, Languages, Pill, Plus, Settings as SettingsIcon } from "lucide-react";
+import { Activity, ArrowLeft, History, Languages, PencilLine, Pill, Plus, Settings as SettingsIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAppSettings } from "../contexts/AppSettingsContext";
+import { hasMedicineDraft } from "../features/medicines/draftStorage";
+import emblemIcon from "../img/big_logo.png";
 import type { Language } from "../types";
 import { hapticImpact, hapticSelection } from "../utils/haptics";
+import { PreviewDataPanel } from "./PreviewDataPanel";
+import { isDemoModeAvailable } from "../features/demo/demoMode";
 
 const LANGUAGE_ORDER: Language[] = ["ru", "uk", "en"];
 
@@ -26,12 +30,13 @@ export function Layout({ children }: { children: ReactNode }) {
         ? t("history")
         : t("settings");
   const nextLanguage = LANGUAGE_ORDER[(LANGUAGE_ORDER.indexOf(settings.language) + 1) % LANGUAGE_ORDER.length];
+  const hasDraft = location.pathname !== "/medicines/new" && hasMedicineDraft("new");
 
   return (
     <div className="app-shell">
       <header className="app-header">
         <Link to="/" className="emblem" aria-label="MedAlarm">
-          <img src={`${import.meta.env.BASE_URL}logo.png`} alt="" />
+          <img src={emblemIcon} alt="" />
         </Link>
         <div>
           <span className="header-kicker">MedAlarm</span>
@@ -50,7 +55,10 @@ export function Layout({ children }: { children: ReactNode }) {
         </button>
       </header>
 
-      <main className="app-content">{children}</main>
+      <main className="app-content">
+        {isDemoModeAvailable() ? <PreviewDataPanel /> : null}
+        {children}
+      </main>
 
       {!ROOT_PATHS.includes(location.pathname) ? (
         <button
@@ -64,9 +72,14 @@ export function Layout({ children }: { children: ReactNode }) {
           <ArrowLeft size={28} />
         </button>
       ) : null}
-      {location.pathname !== "/medicines/new" ? (
+      {location.pathname !== "/medicines/new" && !location.pathname.startsWith("/settings/") ? (
         <Link className="floating-add" to="/medicines/new" aria-label={t("addMedicine")}>
           <Plus size={30} />
+          {hasDraft ? (
+            <span className="draft-badge" aria-label={t("draftInProgress")}>
+              <PencilLine size={11} />
+            </span>
+          ) : null}
         </Link>
       ) : null}
 

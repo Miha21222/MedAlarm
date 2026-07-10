@@ -29,10 +29,14 @@ export interface UserSettings {
 
 export interface TodayItem extends Medicine {
   status: DoseStatus;
+  dose_key: string;
+  scheduled_at: string;
+  event_id: string | null;
+  actionable: boolean;
 }
 
 export interface HistoryItem {
-  event_id: string | number | null;
+  event_id: string | null;
   medicine: string;
   scheduled_at: string;
   responded_at: string;

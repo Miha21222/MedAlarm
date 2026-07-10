@@ -26,6 +26,7 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     medicines: Mapped[list["Medicine"]] = relationship(back_populates="user")
+    feedback_items: Mapped[list["Feedback"]] = relationship(back_populates="user")
 
 
 class Medicine(Base):
@@ -106,7 +107,23 @@ class ReminderDispatchLog(Base):
     chat_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     message_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    snoozed_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     medicine: Mapped[Medicine] = relationship(back_populates="reminder_dispatch_logs")
     schedule: Mapped[MedicineSchedule] = relationship(back_populates="reminder_dispatch_logs")
+
+
+class Feedback(Base):
+    __tablename__ = "feedback"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(16), index=True)
+    rating: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    diagnostic_context: Mapped[str | None] = mapped_column(Text, nullable=True)
+    screenshot_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    user: Mapped[User] = relationship(back_populates="feedback_items")

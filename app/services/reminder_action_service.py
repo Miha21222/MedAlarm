@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.models import IntakeLog, Medicine, ReminderDispatchLog
@@ -52,8 +53,19 @@ class ReminderActionService:
             status=action,
             responded_at=datetime.now(UTC),
         )
-        session.add(intake)
+        try:
+            async with session.begin_nested():
+                session.add(intake)
+                await session.flush()
+        except IntegrityError:
+            existing = await session.scalar(
+                select(IntakeLog).where(IntakeLog.reminder_event_id == event.id)
+            )
+            if existing is None:
+                raise
+            return ReminderActionResult(event.event_id, existing.status, existing.id)
         event.status = action
         event.resolved_at = datetime.now(UTC)
+        event.snoozed_until = None
         await session.flush()
         return ReminderActionResult(event.event_id, action, intake.id)
