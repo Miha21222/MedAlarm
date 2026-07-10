@@ -1,10 +1,38 @@
 services:
-  medalarm-bot:
+  backend:
     build: .
-    container_name: medalarm-bot
+    image: medalarm-backend:latest
     env_file:
       - .env
+    environment:
+      DATABASE_URL: sqlite+aiosqlite:////app/data/medalarm.db
+    expose:
+      - "8000"
+    init: true
     volumes:
-      - ./data:/app/data
+      - medalarm_data:/app/data
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
+  cloudflared:
+    image: cloudflare/cloudflared:2026.6.0
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN}
+    depends_on:
+      backend:
+        condition: service_healthy
+    profiles: ["production"]
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  medalarm_data:

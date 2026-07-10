@@ -1,0 +1,50 @@
+name: Backend Tests
+
+on:
+  push:
+    paths:
+      - "app/**"
+      - "tests/**"
+      - "requirements.txt"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - "deploy/**"
+      - ".github/workflows/backend-tests.yml"
+  pull_request:
+    paths:
+      - "app/**"
+      - "tests/**"
+      - "requirements.txt"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - "deploy/**"
+      - ".github/workflows/backend-tests.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: backend-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: pytest -q
+      - run: docker build -t medalarm-ci .
+      - name: Validate production Compose configuration
+        env:
+          APP_ENV: production
+          BOT_TOKEN: test-token
+          JWT_SECRET: 0123456789abcdef0123456789abcdef
+          MINI_APP_URL: https://example.github.io/MedAlarm/
+          CORS_ALLOWED_ORIGINS: https://example.github.io
+          TUNNEL_TOKEN: test-tunnel-token
+        run: |
+          cp .env.example .env
+          docker compose --profile production config --quiet

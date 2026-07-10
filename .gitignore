@@ -4,4 +4,10 @@ __pycache__/
 *.pyc
 .env
 data/
-
+frontend/node_modules/
+frontend/dist/
+frontend/.npm-cache/
+frontend/.test-dist/
+.playwright-cli/
+.tmp-pytest*/
+.codegraph/

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
@@ -7,11 +8,95 @@ from sqlalchemy import Integer, cast, exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.database.models import IntakeLog, Medicine, ReminderDispatchLog
-from app.utils.datetime_utils import period_start
+from app.database.models import IntakeLog, Medicine, MedicineSchedule, ReminderDispatchLog
+from app.utils.datetime_utils import is_due_today, period_start
+
+
+@dataclass(slots=True)
+class TodayDose:
+    medicine: Medicine
+    schedule: MedicineSchedule
+    scheduled_at: datetime
+    status: str
+    event_id: str | None
+    actionable: bool
 
 
 class IntakeService:
+    @staticmethod
+    async def today_doses(
+        session: AsyncSession,
+        user_id: int,
+        local_date: date,
+        timezone_name: str,
+    ) -> list[TodayDose]:
+        tz = ZoneInfo(timezone_name)
+        start_local = datetime.combine(local_date, time.min, tzinfo=tz)
+        end_local = start_local + timedelta(days=1)
+        start_ts = int(start_local.astimezone(UTC).timestamp())
+        end_ts = int(end_local.astimezone(UTC).timestamp())
+
+        schedule_result = await session.execute(
+            select(MedicineSchedule)
+            .join(Medicine, Medicine.id == MedicineSchedule.medicine_id)
+            .where(Medicine.user_id == user_id, Medicine.is_active.is_(True))
+            .options(selectinload(MedicineSchedule.medicine))
+        )
+        schedules = [
+            schedule
+            for schedule in schedule_result.scalars()
+            if is_due_today(schedule.days_of_week, local_date)
+        ]
+
+        dispatch_result = await session.execute(
+            select(ReminderDispatchLog)
+            .join(Medicine, Medicine.id == ReminderDispatchLog.medicine_id)
+            .where(
+                Medicine.user_id == user_id,
+                ReminderDispatchLog.scheduled_ts >= start_ts,
+                ReminderDispatchLog.scheduled_ts < end_ts,
+            )
+            .order_by(ReminderDispatchLog.scheduled_ts.desc())
+        )
+        dispatch_by_schedule: dict[int, ReminderDispatchLog] = {}
+        for dispatch in dispatch_result.scalars():
+            if dispatch.schedule_id is not None and dispatch.schedule_id not in dispatch_by_schedule:
+                dispatch_by_schedule[dispatch.schedule_id] = dispatch
+
+        dispatch_ids = [dispatch.id for dispatch in dispatch_by_schedule.values()]
+        intake_by_dispatch: dict[int, IntakeLog] = {}
+        if dispatch_ids:
+            intake_result = await session.execute(
+                select(IntakeLog).where(IntakeLog.reminder_event_id.in_(dispatch_ids))
+            )
+            intake_by_dispatch = {
+                intake.reminder_event_id: intake
+                for intake in intake_result.scalars()
+                if intake.reminder_event_id is not None
+            }
+
+        doses: list[TodayDose] = []
+        for schedule in schedules:
+            hour, minute = (int(part) for part in schedule.time.split(":"))
+            scheduled_at = datetime.combine(local_date, time(hour, minute), tzinfo=tz).astimezone(UTC)
+            dispatch = dispatch_by_schedule.get(schedule.id)
+            intake = intake_by_dispatch.get(dispatch.id) if dispatch is not None else None
+            status = intake.status if intake is not None else (
+                "snoozed" if dispatch is not None and dispatch.status == "snoozed" else "pending"
+            )
+            doses.append(
+                TodayDose(
+                    medicine=schedule.medicine,
+                    schedule=schedule,
+                    scheduled_at=scheduled_at,
+                    status=status,
+                    event_id=dispatch.event_id if dispatch is not None else None,
+                    actionable=dispatch is not None and dispatch.resolved_at is None,
+                )
+            )
+        doses.sort(key=lambda dose: (dose.scheduled_at, dose.schedule.id))
+        return doses
+
     @staticmethod
     async def log_dispatch(
         session: AsyncSession,
@@ -19,16 +104,36 @@ class IntakeService:
         medicine_id: int,
         schedule_id: int,
         scheduled_ts: int,
+        chat_id: int | None = None,
+        message_id: int | None = None,
     ) -> ReminderDispatchLog:
         dispatch = ReminderDispatchLog(
             medicine_id=medicine_id,
             schedule_id=schedule_id,
             scheduled_ts=scheduled_ts,
+            chat_id=chat_id,
+            message_id=message_id,
             sent_at=datetime.now(UTC),
         )
         session.add(dispatch)
         await session.flush()
         return dispatch
+
+    @staticmethod
+    async def get_dispatch(
+        session: AsyncSession,
+        *,
+        medicine_id: int,
+        schedule_id: int,
+        scheduled_ts: int,
+    ) -> ReminderDispatchLog | None:
+        return await session.scalar(
+            select(ReminderDispatchLog).where(
+                ReminderDispatchLog.medicine_id == medicine_id,
+                ReminderDispatchLog.schedule_id == schedule_id,
+                ReminderDispatchLog.scheduled_ts == scheduled_ts,
+            )
+        )
 
     @staticmethod
     async def has_dispatch(

@@ -1,5 +1,73 @@
 # MedAlarm
 
+The current production-candidate changes are recorded in
+[`CHANGELOG.md`](CHANGELOG.md). The remaining release and infrastructure work
+is tracked in the checklist in [`deploy/README.md`](deploy/README.md).
+
+## Telegram Mini App
+
+MedAlarm now includes a full-stack Telegram Mini App:
+
+- `frontend/` is the React + TypeScript + Vite interface.
+- `app/api/` is the FastAPI authentication, sync, dashboard, history, and
+  settings API.
+- `python -m app.bot_main` runs Telegram long polling.
+- `python -m app.scheduler` runs reminder scheduling.
+- `python -m app.runtime` supervises the API plus the existing bot/scheduler
+  runtime for Docker. Bot and scheduler intentionally remain together until
+  snoozes are persisted rather than held in process memory.
+
+### Frontend development
+
+```powershell
+cd frontend
+npm.cmd install
+npm.cmd run dev
+npm.cmd run test:local
+npm.cmd run build
+```
+
+Vite development mode uses a local Telegram identity stub and browser
+`localStorage`. Production builds require Telegram `initData`.
+
+### Backend development
+
+```powershell
+uvicorn app.api.main:app --reload --host 0.0.0.0 --port 8000
+python -m app.bot_main
+python -m app.scheduler
+```
+
+Add these values to the existing root `.env`:
+
+```dotenv
+JWT_SECRET=replace-with-a-long-random-secret
+JWT_EXPIRE_MINUTES=1440
+MINI_APP_URL=https://your-pages-host/MedAlarm/
+CORS_ALLOWED_ORIGINS=https://your-pages-host
+```
+
+The legacy SQLite schema is upgraded in place on startup. Medicines receive
+stable client IDs for local-first synchronization; reminder dispatch and intake
+records remain server-authoritative.
+
+### Production deployment
+
+Production uses GitHub Pages for the frontend and a single Hostinger VPS
+Compose stack behind Cloudflare Tunnel for the API, bot, and scheduler. Start
+from `.env.example`; never reuse development secrets. The complete first
+deployment, tagged-release, backup, restore, and rollback procedure is in
+[`deploy/README.md`](deploy/README.md).
+
+The production stack intentionally supports one backend replica while it uses
+SQLite and Telegram long polling. Mini App schedule changes are reconciled by
+the scheduler, and pending snoozes are restored after container restarts.
+
+Settings now includes authenticated rating and bug-report forms. Submissions
+are stored in SQLite and relayed best-effort to configured Telegram forum
+topics; bug reports may include a JPEG, PNG, or WebP screenshot up to 8 MB.
+Demo data is development-only and cannot be enabled by a production build.
+
 Telegram-бот для напоминаний о приёме лекарств (MVP на `aiogram 3`, `SQLite`, `SQLAlchemy`, `APScheduler`).
 
 ## Возможности MVP
@@ -35,4 +103,3 @@ Telegram-бот для напоминаний о приёме лекарств (
 
 ## Важное ограничение
 Бот не даёт медицинские рекомендации, не подбирает дозировки и не меняет схему лечения. Он только напоминает по данным, которые ввёл пользователь.
-
