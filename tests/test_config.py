@@ -12,6 +12,7 @@ def test_dev_env_allows_default_jwt_secret(monkeypatch):
 
 def test_non_dev_env_rejects_default_jwt_secret(monkeypatch):
     monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("BOT_TOKEN", "test-bot-token")
     monkeypatch.delenv("JWT_SECRET", raising=False)
     with pytest.raises(RuntimeError, match="JWT_SECRET"):
         load_settings()
