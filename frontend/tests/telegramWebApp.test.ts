@@ -1,4 +1,9 @@
-import { initializeTelegramWebApp, showConfirm, type TelegramWebAppControls } from "../src/telegramWebApp";
+import {
+  initializeTelegramWebApp,
+  showConfirm,
+  type TelegramWebAppControls,
+  type VirtualKeyboardControls,
+} from "../src/telegramWebApp";
 
 function assertEqual<T>(actual: T, expected: T): void {
   if (actual !== expected) {
@@ -18,8 +23,10 @@ function buildWebApp(): TelegramWebAppControls & { calls: string[] } {
 
 {
   const webApp = buildWebApp();
-  initializeTelegramWebApp(webApp);
+  const virtualKeyboard: VirtualKeyboardControls = { overlaysContent: false };
+  initializeTelegramWebApp(webApp, virtualKeyboard);
 
+  assertEqual(virtualKeyboard.overlaysContent, true);
   assertEqual(webApp.calls.join(","), "ready,expand");
 }
 

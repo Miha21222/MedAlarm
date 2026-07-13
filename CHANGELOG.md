@@ -62,6 +62,11 @@ merged, tagged, and deployed through the checklist in `deploy/README.md`.
   demo state and refuses to enable it.
 - Polished feedback typography: larger labels/helper copy, lighter and smaller
   placeholders, concise punctuation, and no diagnostics notice.
+- Kept the app viewport stable when the mobile keyboard opens so fixed
+  navigation and floating actions remain behind the keyboard instead of
+  jumping upward over form fields.
+- Added development-only URLs for reviewing the full-screen loading, retry,
+  and open-in-Telegram states without manufacturing authentication failures.
 
 ### Deployment and operations
 

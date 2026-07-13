@@ -1,5 +1,6 @@
 import { Send } from "lucide-react";
 import { translate } from "../i18n";
+import emblemIcon from "../img/big_logo.png";
 import type { Language } from "../types";
 
 // New capability adopted from PocketMind: a dedicated gate screen for when the
@@ -21,7 +22,7 @@ export function OpenInTelegram() {
   return (
     <main className="brand-state">
       <div className="brand-orbit">
-        <img src={`${import.meta.env.BASE_URL}logo.png`} alt="MedAlarm" />
+        <img src={emblemIcon} alt="MedAlarm" />
       </div>
       <h2 style={{ margin: 0 }}>{translate(language, "openInTelegramTitle")}</h2>
       <p>{translate(language, "openInTelegramHint")}</p>

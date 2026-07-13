@@ -16,6 +16,14 @@ export interface TelegramWebAppControls {
   showConfirm?: (message: string, callback: (confirmed: boolean) => void) => void;
 }
 
+export interface VirtualKeyboardControls {
+  overlaysContent: boolean;
+}
+
+interface NavigatorWithVirtualKeyboard extends Navigator {
+  virtualKeyboard?: VirtualKeyboardControls;
+}
+
 interface TelegramWindow extends Window {
   Telegram?: {
     WebApp?: TelegramWebAppControls;
@@ -36,7 +44,24 @@ export function getTelegramWebApp(win?: Window): TelegramWebAppControls | undefi
   return (sourceWindow as TelegramWindow).Telegram?.WebApp;
 }
 
-export function initializeTelegramWebApp(webApp: TelegramWebAppControls | undefined = getTelegramWebApp()): void {
+function getVirtualKeyboard(): VirtualKeyboardControls | undefined {
+  if (typeof navigator === "undefined") return undefined;
+  return (navigator as NavigatorWithVirtualKeyboard).virtualKeyboard;
+}
+
+export function initializeTelegramWebApp(
+  webApp: TelegramWebAppControls | undefined = getTelegramWebApp(),
+  virtualKeyboard: VirtualKeyboardControls | undefined = getVirtualKeyboard(),
+): void {
+  // Keep the layout viewport stable while typing. Chromium-based Telegram
+  // WebViews that expose this API will place the keyboard over the app instead
+  // of moving fixed navigation and floating actions above it. The matching
+  // viewport meta directive provides the declarative path for newer WebViews.
+  try {
+    if (virtualKeyboard) virtualKeyboard.overlaysContent = true;
+  } catch {
+    // WebView capabilities are best-effort and must never block app startup.
+  }
   webApp?.ready?.();
   webApp?.expand?.();
 }

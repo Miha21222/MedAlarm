@@ -1,5 +1,5 @@
 import { RotateCcw } from "lucide-react";
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, useLocation } from "react-router-dom";
 import { hasTelegramLaunchData, shouldShowTelegramGate } from "./authGate";
 import { Layout } from "./components/Layout";
 import { LoadingState } from "./components/LoadingState";
@@ -21,7 +21,30 @@ import { FeedbackRatingPage } from "./pages/FeedbackRatingPage";
 
 export default function App() {
   const auth = useTelegramAuth();
+  const location = useLocation();
   const storedLanguage = readSettings().language;
+
+  // Full-screen auth states normally exist only briefly or require a failed
+  // Telegram launch. Keep stable, development-only URLs for visual review;
+  // production builds compile this branch out via Vite's DEV constant.
+  if (import.meta.env.DEV) {
+    if (location.pathname === "/dev/loading") {
+      return <LoadingState label={translate(storedLanguage, "loading")} />;
+    }
+    if (location.pathname === "/dev/error") {
+      return (
+        <LoadingState label={translate(storedLanguage, "syncError")}>
+          <button className="primary-btn" onClick={auth.retry}>
+            <RotateCcw size={18} />
+            {translate(storedLanguage, "retry")}
+          </button>
+        </LoadingState>
+      );
+    }
+    if (location.pathname === "/dev/open-in-telegram") {
+      return <OpenInTelegram />;
+    }
+  }
 
   if (auth.loading) {
     return <LoadingState label={translate(storedLanguage, "loading")} />;
