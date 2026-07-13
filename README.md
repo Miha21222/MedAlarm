@@ -30,6 +30,10 @@ npm.cmd run build
 Vite development mode uses a local Telegram identity stub and browser
 `localStorage`. Production builds require Telegram `initData`.
 
+When the local preview is running, development-only full-screen state previews
+are available at `/dev/loading`, `/dev/error`, and
+`/dev/open-in-telegram`. These paths are disabled in production builds.
+
 ### Backend development
 
 ```powershell

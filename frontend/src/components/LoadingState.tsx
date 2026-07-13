@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import emblemIcon from "../img/big_logo.png";
 
 // MedAlarm's breathing brand-orbit logo treatment is kept as-is here (it reads
 // better than PocketMind's plain spinner) — this is a file move, not a
@@ -7,7 +8,7 @@ export function LoadingState({ label, children }: { label: string; children?: Re
   return (
     <main className="brand-state">
       <div className="brand-orbit">
-        <img src={`${import.meta.env.BASE_URL}logo.png`} alt="MedAlarm" />
+        <img src={emblemIcon} alt="MedAlarm" />
       </div>
       <p>{label}</p>
       {children}
