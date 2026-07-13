@@ -3,11 +3,12 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
-import { initializeTelegramWebApp } from "./telegramWebApp";
+import { initializeKeyboardOverlay, initializeTelegramWebApp } from "./telegramWebApp";
 import { configureDemoModeAvailability } from "./features/demo/demoMode";
 import "./styles.css";
 
 configureDemoModeAvailability(import.meta.env.DEV);
+initializeKeyboardOverlay();
 initializeTelegramWebApp();
 
 const queryClient = new QueryClient();
