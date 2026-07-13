@@ -1,4 +1,5 @@
 import {
+  calculateKeyboardOffset,
   initializeTelegramWebApp,
   showConfirm,
   type TelegramWebAppControls,
@@ -19,6 +20,12 @@ function buildWebApp(): TelegramWebAppControls & { calls: string[] } {
     expand: () => calls.push("expand"),
     isVersionAtLeast: (version) => version === "8.0",
   };
+}
+
+{
+  assertEqual(calculateKeyboardOffset(800, 480), 320);
+  assertEqual(calculateKeyboardOffset(800, 480, 20), 300);
+  assertEqual(calculateKeyboardOffset(480, 800), 0);
 }
 
 {

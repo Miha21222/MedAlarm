@@ -64,7 +64,8 @@ merged, tagged, and deployed through the checklist in `deploy/README.md`.
   placeholders, concise punctuation, and no diagnostics notice.
 - Kept the app viewport stable when the mobile keyboard opens so fixed
   navigation and floating actions remain behind the keyboard instead of
-  jumping upward over form fields.
+  jumping upward over form fields, including a measured viewport fallback for
+  Telegram Android WebViews that ignore the standard keyboard-overlay APIs.
 - Added development-only URLs for reviewing the full-screen loading, retry,
   and open-in-Telegram states without manufacturing authentication failures.
 
