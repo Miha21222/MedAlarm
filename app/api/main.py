@@ -17,7 +17,7 @@ async def lifespan(_: FastAPI):
 
 
 settings = load_settings()
-app = FastAPI(title="MedAlarm API", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="MedAlarm API", version="1.0.1", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=list(settings.cors_allowed_origins),

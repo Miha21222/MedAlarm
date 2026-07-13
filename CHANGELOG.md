@@ -1,10 +1,30 @@
 # Changelog
 
-## Unreleased — full-stack Mini App production candidate
+All notable changes to MedAlarm are documented in this file.
 
-This section documents the current `feat-fullstack-mini-app` working tree. The
-changes are not a production release until they are committed, reviewed,
-merged, tagged, and deployed through the checklist in `deploy/README.md`.
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project follows [Semantic Versioning](https://semver.org/).
+
+## [1.0.1] - 2026-07-13
+
+### Fixed
+
+- Opening the mobile keyboard in Telegram no longer resizes the app and pushes
+  the bottom navigation and floating actions above it. Supporting Chromium
+  WebViews use keyboard overlay mode, while older Telegram Android WebViews
+  retain the pre-keyboard viewport height and compensate for viewport resizing.
+
+### Changed
+
+- Full-screen loading, retry, and open-in-Telegram states now use the same
+  circular MedAlarm emblem as the app header.
+- Added development-only `/dev/loading`, `/dev/error`, and
+  `/dev/open-in-telegram` routes for stable visual review of transient states.
+
+## [1.0.0] - 2026-07-13
+
+Initial tracked release. This tag is the baseline MedAlarm starts versioning
+from; earlier bot-only history exists as untagged commits on `main`.
 
 ### Telegram bot and reminders
 
@@ -62,12 +82,6 @@ merged, tagged, and deployed through the checklist in `deploy/README.md`.
   demo state and refuses to enable it.
 - Polished feedback typography: larger labels/helper copy, lighter and smaller
   placeholders, concise punctuation, and no diagnostics notice.
-- Kept the app viewport stable when the mobile keyboard opens so fixed
-  navigation and floating actions remain behind the keyboard instead of
-  jumping upward over form fields, including a measured viewport fallback for
-  Telegram Android WebViews that ignore the standard keyboard-overlay APIs.
-- Added development-only URLs for reviewing the full-screen loading, retry,
-  and open-in-Telegram states without manufacturing authentication failures.
 
 ### Deployment and operations
 
@@ -81,11 +95,5 @@ merged, tagged, and deployed through the checklist in `deploy/README.md`.
 - Added tagged VPS release, SQLite backup, restore, rollback, and operational
   verification scripts under `deploy/`.
 
-### Verification completed locally
-
-- Backend suite: 49 tests passed.
-- Frontend plain-TypeScript logic suite passed.
-- Production TypeScript/Vite build passed.
-- Documentation and changed-file whitespace checks passed.
-- Rendered browser QA is still required because the in-app browser was not
-  available during the final feedback-form polish.
+[1.0.1]: https://github.com/Miha21222/MedAlarm/compare/v1.0.0...v1.0.1
+[1.0.0]: https://github.com/Miha21222/MedAlarm/releases/tag/v1.0.0
