@@ -1,3 +1,5 @@
+import type { MedicineCatalogReference } from "../../types";
+
 // Autosaves in-progress medicine-form input so navigating away accidentally
 // doesn't lose it, mirroring PocketMind's task-create draft pattern. Keyed by
 // `context` (the medicineId being edited, or "new") so a stale draft from a
@@ -12,6 +14,7 @@ export interface MedicineDraft {
   unit: string;
   comment: string;
   times: string[];
+  catalog?: MedicineCatalogReference | null;
 }
 
 export function readMedicineDraft(context: string): MedicineDraft | null {

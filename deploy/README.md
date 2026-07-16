@@ -18,7 +18,8 @@ Complete these items before calling the application fully deployed:
   `0600` and outside Git.
 - [ ] Confirm the Cloudflare Tunnel hostname points to `http://backend:8000`,
   TLS works, and public `/health`, `/ready`, and `/api/v1` requests reach the
-  backend without exposing port 8000 directly.
+  backend without exposing port 8000 directly. Verify `/api/v1/catalog/status`
+  reports `ready: true` and a non-zero MOH register record count.
 - [ ] Set GitHub repository variable `VITE_API_BASE_URL` to the final HTTPS URL
   ending in `/api/v1`; verify the Pages deployment uses `/MedAlarm/` and loads
   without console or asset errors.
@@ -53,7 +54,9 @@ Complete these items before calling the application fully deployed:
 5. Set the BotFather Mini App URL to
    `https://miha21222.github.io/MedAlarm/`.
 6. Create and push a release tag, then run `sh deploy/release.sh <tag>` on the
-   VPS. Confirm `https://<api-host>/ready` returns `{"status":"ready"}`.
+   VPS. Confirm `https://<api-host>/ready` returns `{"status":"ready"}` and
+   `/api/v1/catalog/status` reports a ready MOH catalogue. Compose checks the
+   `data.gov.ua` source on startup because `CATALOG_AUTO_UPDATE=true`.
 
 The deployment supports exactly one backend replica. Do not scale the bot or
 scheduler horizontally while SQLite and Telegram long polling are in use.

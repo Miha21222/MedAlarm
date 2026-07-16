@@ -34,6 +34,7 @@ class MedicineSyncPayload:
     updated_at: datetime
     deleted_at: datetime | None
     schedules: list[ScheduleSyncPayload]
+    catalog: dict[str, object] | None = None
 
 
 class MedicineSyncService:
@@ -66,6 +67,7 @@ class MedicineSyncService:
         medicine.name = payload.name.strip()
         medicine.dosage_text = payload.dosage_text.strip()
         medicine.comment = payload.comment
+        medicine.catalog_snapshot = payload.catalog
         medicine.is_active = payload.is_active and payload.deleted_at is None
         medicine.updated_at = incoming_updated_at
         medicine.deleted_at = _utc(payload.deleted_at) if payload.deleted_at else None

@@ -24,7 +24,7 @@ export function writeMedicineStore(medicines: Medicine[], storage: Pick<Storage,
 }
 
 export function createMedicine(
-  input: Pick<Medicine, "name" | "dosage_text" | "comment" | "schedules">,
+  input: Pick<Medicine, "name" | "dosage_text" | "comment" | "schedules" | "catalog">,
 ): Medicine {
   const now = new Date().toISOString();
   return {
@@ -39,7 +39,7 @@ export function createMedicine(
 
 export function updateMedicine(
   existing: Medicine,
-  input: Pick<Medicine, "name" | "dosage_text" | "comment" | "schedules">,
+  input: Pick<Medicine, "name" | "dosage_text" | "comment" | "schedules" | "catalog">,
 ): Medicine {
   return {
     ...existing,

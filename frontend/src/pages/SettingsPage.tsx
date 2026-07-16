@@ -1,4 +1,7 @@
+import { Bug, Star, Type } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useAppSettings } from "../contexts/AppSettingsContext";
+import type { TextSize } from "../types";
 import { useHapticsEnabled } from "../utils/haptics";
 import { snoozeOptions, timezoneLabel, timezoneOptions } from "../utils/settingsOptions";
 
@@ -32,6 +35,31 @@ export function SettingsPage() {
             ))}
           </select>
         </label>
+        <div className="text-size-setting">
+          <div className="text-size-setting-heading">
+            <Type size={20} aria-hidden="true" />
+            <div className="text-size-setting-copy">
+              <strong>{t("textSize")}</strong>
+              <small>{t("textSizeHint")}</small>
+            </div>
+          </div>
+          <div className="text-size-presets" role="group" aria-label={t("textSize")}>
+            {(["small", "regular", "large"] as TextSize[]).map((size) => (
+              <button
+                key={size}
+                type="button"
+                className={settings.text_size === size ? "active" : ""}
+                aria-pressed={settings.text_size === size}
+                onClick={() => updateSettings({ text_size: size })}
+              >
+                <span className={`text-size-sample ${size}`} aria-hidden="true">Aa</span>
+                <span className="text-size-preset-label">
+                  {t(size === "small" ? "textSizeSmall" : size === "regular" ? "textSizeRegular" : "textSizeLarge")}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
         <label className="toggle-row">
           <span>
             <strong>{t("repeats")}</strong>
@@ -82,5 +110,3 @@ export function SettingsPage() {
     </section>
   );
 }
-import { Bug, Star } from "lucide-react";
-import { Link } from "react-router-dom";

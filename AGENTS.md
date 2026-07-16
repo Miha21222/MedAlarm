@@ -63,12 +63,15 @@ medical advice, dosage recommendations, or treatment changes.
 - `app/states/`: aiogram FSM state definitions used by the inline UI.
 - `app/services/`: database-backed business logic. Keep queries here rather
   than in handlers or API routes. Includes `medicine_sync_service.py`
-  (Mini App last-write-wins sync) and `reminder_action_service.py` (shared
-  bot/Mini App reminder resolution).
+  (Mini App last-write-wins sync), `medicine_catalog_service.py` (CC BY
+  Ukrainian MOH State Register import/search), and `reminder_action_service.py`
+  (shared bot/Mini App reminder resolution).
 - `app/database/models.py`: `User -> Medicine -> MedicineSchedule`, with
   intake and reminder-dispatch logs and cascade deletion. `Medicine` carries
-  `client_medicine_id`/`updated_at`/`deleted_at` for Mini App sync;
-  `ReminderDispatchLog` carries a public `event_id` used by both the bot
+  `client_medicine_id`/`updated_at`/`deleted_at` plus an optional catalogue
+  snapshot for Mini App sync; `CatalogMedicine`/`CatalogMetadata` store the
+  imported MOH catalogue. `ReminderDispatchLog` carries a public `event_id`
+  used by both the bot
   callback and the Mini App action endpoint.
 - `app/database/session.py`: async engine/session setup. Use `session_scope()`
   so successful operations commit and failures roll back.
@@ -81,8 +84,9 @@ medical advice, dosage recommendations, or treatment changes.
 - `app/scheduler/__main__.py`: scheduler-only entrypoint for split-process
   local dev; not used by Docker.
 - `app/api/`: FastAPI backend for the Mini App (`main.py` app + CORS,
-  `routes.py` prefix `/api/v1` — auth, sync, settings, dashboard, history,
-  reminder actions, `auth.py` Telegram initData validation + bearer tokens,
+  `routes.py` prefix `/api/v1` — public catalogue status/search, auth, sync,
+  settings, dashboard, history, reminder actions, `auth.py` Telegram initData
+  validation + bearer tokens,
   `schemas.py`, `dependencies.py`).
 - `app/runtime.py`: Docker entrypoint supervising two subprocesses (the API
   and `main.py`'s combined bot+scheduler) with signal forwarding and
@@ -93,7 +97,9 @@ medical advice, dosage recommendations, or treatment changes.
   `src/components/`, `src/pages/`. Uses its own hand-written `src/styles.css`
   design system, not Tailwind.
 - Current frontend routes are dashboard, medicine list/create/detail/edit,
-  history, settings, rating feedback, and bug reporting. The dashboard exposes Taken/Skipped actions only for
+  history, settings, rating feedback, and bug reporting. Medicine creation
+  supports manual entry or selection from the locally imported MOH catalogue;
+  intake amount and schedule always remain user-entered. The dashboard exposes Taken/Skipped actions only for
   unresolved server dispatch events. `src/features/demo/` provides isolated
   preview state; demo actions use a separate history storage key and never
   alter real history. `src/features/history/` provides period/status filters,
@@ -125,6 +131,9 @@ must remain tied to an existing dispatch record.
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+
+# Import/refresh the Ukrainian MOH catalogue
+python -m app.catalog_update
 
 # Run locally; .env must contain BOT_TOKEN
 python main.py
@@ -161,7 +170,8 @@ than silently running with the insecure default.
 
 ## Change Guidelines
 
-- Preserve the Russian, beginner-friendly user interface.
+- Preserve the Russian, beginner-friendly user interface. Mini App typography
+  must respect the synchronized Small/Regular/Large text-size preference.
 - Keep callback actions idempotent and avoid duplicate messages or side effects.
 - Put persistence and domain rules in services, not handlers or API routes.
 - Add or update focused tests for behavior changes (`tests/` for backend,

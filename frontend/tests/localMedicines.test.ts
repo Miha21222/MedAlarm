@@ -28,6 +28,32 @@ const medicine = createMedicine({
 writeMedicineStore([medicine], storage);
 assert(readMedicineStore(storage)[0].name === "Vitamin D", "medicine should round-trip");
 
+const catalogMedicine = createMedicine({
+  name: "АСПІРИН КАРДІО®",
+  dosage_text: "1 таблетка",
+  comment: null,
+  schedules: [{ time: "09:00", days_of_week: "*" }],
+  catalog: {
+    source: "moh_state_register",
+    source_id: "record-1",
+    trade_name: "АСПІРИН КАРДІО®",
+    inn: "Acetylsalicylic acid",
+    form: "таблетки по 100 мг №28",
+    dispensing_conditions: "без рецепта",
+    active_ingredients: "ацетилсаліцилова кислота",
+    pharmacotherapeutic_group: "Антитромботичні засоби",
+    atc_codes: "B01AC06",
+    applicant: "Applicant",
+    manufacturer: "Manufacturer",
+    registration_number: "UA/7802/01/01",
+    valid_from: "01.01.2025",
+    valid_until: "необмежений",
+    early_termination: "Ні",
+    instruction_url: "https://example.test/instruction",
+  },
+});
+assert(catalogMedicine.catalog?.registration_number === "UA/7802/01/01", "catalog metadata should be retained");
+
 const deleted = deleteMedicine(medicine);
 assert(deleted.deleted_at !== null && deleted.is_active === false, "delete should create tombstone");
 

@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Pill, Trash2 } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { EmptyState } from "../components/EmptyState";
+import { MedicineCatalogDetails } from "../components/MedicineCatalogDetails";
 import { useAppSettings } from "../contexts/AppSettingsContext";
 import { useToast } from "../contexts/ToastContext";
 import { removeMedicineFromCache } from "../features/medicines/cache";
@@ -41,6 +42,7 @@ export function MedicineDetailPage() {
           ))}
         </div>
       </article>
+      {medicine.catalog ? <MedicineCatalogDetails catalog={medicine.catalog} /> : null}
       <Link className="primary-btn full" to={`/medicines/${medicine.client_medicine_id}/edit`}>
         {t("editMedicine")}
       </Link>

@@ -20,7 +20,7 @@ from app.api.schemas import (
     TelegramAuthRequest,
 )
 from app.config import load_settings
-from app.database.models import IntakeLog, Medicine, ReminderDispatchLog, User
+from app.database.models import CatalogMedicine, IntakeLog, Medicine, ReminderDispatchLog, User
 from app.services.feedback_service import (
     ALLOWED_IMAGE_TYPES,
     MAX_SCREENSHOT_BYTES,
@@ -28,6 +28,7 @@ from app.services.feedback_service import (
     notify_feedback,
 )
 from app.services.intake_service import IntakeService
+from app.services.medicine_catalog_service import MedicineCatalogService
 from app.services.medicine_sync_service import MedicineSyncPayload, MedicineSyncService, ScheduleSyncPayload
 from app.services.reminder_action_service import ReminderActionService
 from app.services.user_service import UserService
@@ -43,6 +44,7 @@ def _serialize_medicine(medicine: Medicine) -> dict[str, object]:
         "name": medicine.name,
         "dosage_text": medicine.dosage_text,
         "comment": medicine.comment,
+        "catalog": medicine.catalog_snapshot,
         "is_active": medicine.is_active,
         "updated_at": medicine.updated_at,
         "deleted_at": medicine.deleted_at,
@@ -64,11 +66,54 @@ def _sync_payload(payload: MedicinePayload) -> MedicineSyncPayload:
         name=payload.name,
         dosage_text=payload.dosage_text,
         comment=payload.comment,
+        catalog=payload.catalog.model_dump() if payload.catalog else None,
         is_active=payload.is_active,
         updated_at=payload.updated_at,
         deleted_at=payload.deleted_at,
         schedules=[ScheduleSyncPayload(**slot.model_dump()) for slot in payload.schedules],
     )
+
+
+def _serialize_catalog_medicine(medicine: CatalogMedicine) -> dict[str, object]:
+    return {
+        "source": "moh_state_register",
+        "source_id": medicine.source_id,
+        "trade_name": medicine.trade_name,
+        "inn": medicine.inn,
+        "form": medicine.form,
+        "dispensing_conditions": medicine.dispensing_conditions,
+        "active_ingredients": medicine.active_ingredients,
+        "pharmacotherapeutic_group": medicine.pharmacotherapeutic_group,
+        "atc_codes": medicine.atc_codes,
+        "applicant": medicine.applicant,
+        "manufacturer": medicine.manufacturer,
+        "registration_number": medicine.registration_number,
+        "valid_from": medicine.valid_from,
+        "valid_until": medicine.valid_until,
+        "early_termination": medicine.early_termination,
+        "instruction_url": medicine.instruction_url,
+    }
+
+
+@router.get("/catalog/status")
+async def catalog_status(session: AsyncSession = Depends(get_session)) -> dict[str, object]:
+    return await MedicineCatalogService.status(session)
+
+
+@router.get("/catalog/medicines")
+async def search_catalog(
+    q: str = Query(min_length=2, max_length=100),
+    limit: int = Query(default=20, ge=1, le=30),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, object]:
+    status_payload = await MedicineCatalogService.status(session)
+    if not status_payload["ready"]:
+        raise HTTPException(
+            status_code=503,
+            detail="Medicine catalogue is not imported; run python -m app.catalog_update",
+        )
+    medicines = await MedicineCatalogService.search(session, q, limit)
+    return {"items": [_serialize_catalog_medicine(item) for item in medicines], "source": status_payload}
 
 
 @router.post("/auth/telegram")
@@ -104,6 +149,7 @@ def _serialize_user(user: User) -> dict[str, object]:
         "first_name": user.first_name,
         "last_name": user.last_name,
         "language": user.language,
+        "text_size": user.text_size,
         "timezone": user.timezone,
         "default_snooze_minutes": user.default_snooze_minutes,
         "remind_until_confirmed": user.remind_until_confirmed,
@@ -169,6 +215,8 @@ async def patch_settings(
         user.timezone = payload.timezone
     if payload.language is not None:
         user.language = payload.language
+    if payload.text_size is not None:
+        user.text_size = payload.text_size
     if payload.default_snooze_minutes is not None:
         user.default_snooze_minutes = payload.default_snooze_minutes
     if payload.remind_until_confirmed is not None:
