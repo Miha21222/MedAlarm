@@ -7,8 +7,22 @@ import type { MedicineCatalogReference } from "../../types";
 
 const DRAFT_KEY = "medalarm.medicineDraft.v1";
 
+type DraftStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+
+export type MedicineEntryMode = "catalog" | "manual";
+
+export interface ManualMedicineDraftValues {
+  name: string;
+  amount: string;
+  unit: string;
+  comment: string;
+  times: string[];
+}
+
 export interface MedicineDraft {
   context: string;
+  entryMode?: MedicineEntryMode;
+  manual?: ManualMedicineDraftValues;
   name: string;
   amount: string;
   unit: string;
@@ -17,9 +31,9 @@ export interface MedicineDraft {
   catalog?: MedicineCatalogReference | null;
 }
 
-export function readMedicineDraft(context: string): MedicineDraft | null {
+export function readMedicineDraft(context: string, storage: DraftStorage = localStorage): MedicineDraft | null {
   try {
-    const raw = localStorage.getItem(DRAFT_KEY);
+    const raw = storage.getItem(DRAFT_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<MedicineDraft> | null;
     if (!parsed || typeof parsed !== "object" || parsed.context !== context) return null;
@@ -29,17 +43,17 @@ export function readMedicineDraft(context: string): MedicineDraft | null {
   }
 }
 
-export function writeMedicineDraft(draft: MedicineDraft): void {
+export function writeMedicineDraft(draft: MedicineDraft, storage: DraftStorage = localStorage): void {
   try {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    storage.setItem(DRAFT_KEY, JSON.stringify(draft));
   } catch {
     // best-effort; losing a draft is not fatal
   }
 }
 
-export function clearMedicineDraft(): void {
+export function clearMedicineDraft(storage: DraftStorage = localStorage): void {
   try {
-    localStorage.removeItem(DRAFT_KEY);
+    storage.removeItem(DRAFT_KEY);
   } catch {
     // ignore
   }
@@ -48,7 +62,7 @@ export function clearMedicineDraft(): void {
 // A draft is written on every keystroke, including the very first render of a
 // blank form — so "exists" alone would flag every visit to the form, not just
 // ones with actual unsaved progress. Require a non-empty name instead.
-export function hasMedicineDraft(context: string): boolean {
-  const draft = readMedicineDraft(context);
+export function hasMedicineDraft(context: string, storage: DraftStorage = localStorage): boolean {
+  const draft = readMedicineDraft(context, storage);
   return draft !== null && draft.name.trim().length > 0;
 }

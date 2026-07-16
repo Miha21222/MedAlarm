@@ -8,6 +8,7 @@
   },
   "include": [
     "src/features/medicines/localMedicines.ts",
+    "src/features/medicines/draftStorage.ts",
     "src/features/medicines/localIntakeHistory.ts",
     "src/features/medicines/previewMedicines.ts",
     "src/features/history/historyAnalysis.ts",

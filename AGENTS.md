@@ -53,14 +53,13 @@ medical advice, dosage recommendations, or treatment changes.
 - `app/bot.py`: construct the aiogram bot and dispatcher.
 - `app/bot_main.py`: bot-only entrypoint (no scheduler), for split-process
   local dev; not used by Docker.
-- `app/handlers/inline_ui.py`: live menu UI and FSM flows for `/start`,
-  `/menu`, `/app`, medicines, history, and settings.
+- `app/handlers/inline_ui.py`: `/start` and `/app` registration/welcome flow;
+  it opens the Mini App and has no legacy text-menu or FSM flows.
 - `app/handlers/callbacks.py`: live reminder actions for taken, snooze, and
   skip, delegating to `app/services/reminder_action_service.py` — the same
   service the Mini App's reminder-action endpoint uses.
 - `app/handlers/__init__.py`: live router registration (only
   `inline_ui_router` and `callbacks_router`).
-- `app/states/`: aiogram FSM state definitions used by the inline UI.
 - `app/services/`: database-backed business logic. Keep queries here rather
   than in handlers or API routes. Includes `medicine_sync_service.py`
   (Mini App last-write-wins sync), `medicine_catalog_service.py` (CC BY

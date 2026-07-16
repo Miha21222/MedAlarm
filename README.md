@@ -86,12 +86,8 @@ Demo data is development-only and cannot be enabled by a production build.
 Telegram-бот для напоминаний о приёме лекарств (MVP на `aiogram 3`, `SQLite`, `SQLAlchemy`, `APScheduler`).
 
 ## Возможности MVP
-- `/start` регистрация пользователя.
-- `/add_medicine` пошаговое добавление лекарства и расписания.
-- `/my_medicines` просмотр и управление активностью лекарства.
-- `/today` план на сегодня.
-- `/history [today|week|month] [medicine_id]` история приёмов.
-- `/settings` настройка timezone, snooze и повторов до подтверждения.
+- `/start` регистрирует пользователя и предлагает открыть Mini App.
+- Лекарства, расписание, история и настройки доступны в Mini App.
 - Напоминания с inline-кнопками: `✅ Принял`, `⏰ Напомнить через 10 минут`, `⏭ Пропустить`.
 
 ## Быстрый запуск локально

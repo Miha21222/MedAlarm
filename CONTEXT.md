@@ -63,7 +63,8 @@ Local entrypoints:
 - `main.py` loads settings, initializes the database, creates the bot and
   dispatcher, starts `ReminderScheduler`, and begins long polling.
 - `app/handlers/__init__.py` registers `inline_ui_router` and
-  `callbacks_router`. Menus and FSM flows live in `inline_ui.py`; reminder
+  `callbacks_router`. `inline_ui.py` handles `/start` and `/app` and opens the
+  Mini App; the legacy text menu and FSM flows have been removed. Reminder
   buttons live in `callbacks.py`.
 - `app/services/` owns persistence and domain rules. Keep database queries out
   of handlers and API routes.
