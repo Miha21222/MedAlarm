@@ -7,6 +7,8 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-07-16
+
 ### Changed
 
 - Removed the legacy Telegram text/inline menu; `/start` and `/app` now expose
@@ -126,7 +128,8 @@ from; earlier bot-only history exists as untagged commits on `main`.
 - Added tagged VPS release, SQLite backup, restore, rollback, and operational
   verification scripts under `deploy/`.
 
-[Unreleased]: https://github.com/Miha21222/MedAlarm/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/Miha21222/MedAlarm/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/Miha21222/MedAlarm/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/Miha21222/MedAlarm/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/Miha21222/MedAlarm/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/Miha21222/MedAlarm/releases/tag/v1.0.0
