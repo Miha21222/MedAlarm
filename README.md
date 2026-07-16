@@ -1,3 +1,7 @@
+<p align="center">
+  <strong>Русский</strong> · <a href="README.uk.md">Українська</a> · <a href="README.en.md">English</a>
+</p>
+
 <div align="center">
   <img src="frontend/public/logo.png" alt="Логотип MedAlarm" width="128" />
   <h1>MedAlarm</h1>
