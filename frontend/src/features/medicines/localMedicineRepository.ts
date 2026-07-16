@@ -55,14 +55,14 @@ export function getLocalMedicine(clientMedicineId: string): Medicine | undefined
 }
 
 export async function createLocalMedicine(
-  input: Pick<Medicine, "name" | "dosage_text" | "comment" | "schedules">,
+  input: Pick<Medicine, "name" | "dosage_text" | "comment" | "schedules" | "catalog">,
 ): Promise<Medicine> {
   return persistWithSync(buildMedicine(input));
 }
 
 export async function updateLocalMedicine(
   existing: Medicine,
-  input: Pick<Medicine, "name" | "dosage_text" | "comment" | "schedules">,
+  input: Pick<Medicine, "name" | "dosage_text" | "comment" | "schedules" | "catalog">,
 ): Promise<Medicine> {
   return persistWithSync(applyMedicineUpdate(existing, input));
 }

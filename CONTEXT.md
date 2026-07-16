@@ -1,6 +1,6 @@
 # MedAlarm Repository Context
 
-Last verified from the working tree: **2026-07-10**.
+Last verified from the working tree: **2026-07-16**.
 
 This is the current-state handoff for contributors and coding agents. Read it
 with `AGENTS.md`, which contains the binding repository rules. Do not treat
@@ -78,6 +78,10 @@ Local entrypoints:
 The central relationships are `User -> Medicine -> MedicineSchedule`, with
 `IntakeLog` and `ReminderDispatchLog` attached to medicines. `Medicine` carries
 `client_medicine_id`, `updated_at`, and `deleted_at` for synchronization.
+Catalogue-linked medicines also carry a JSON metadata snapshot so reminders
+remain stable if the external register changes. `CatalogMedicine` and
+`CatalogMetadata` hold the locally imported, openly licensed Ukrainian MOH
+State Register and its source freshness metadata.
 
 Every real reminder response must resolve an existing
 `ReminderDispatchLog.event_id`. `ReminderActionService` is shared by Telegram
@@ -91,6 +95,8 @@ adherence history without a dispatch.
 `app/api/main.py` initializes the database during lifespan, configures CORS,
 and mounts these routes under `/api/v1`:
 
+- `GET /catalog/status`
+- `GET /catalog/medicines?q=...`
 - `POST /auth/telegram`
 - `GET /sync/bootstrap`
 - `PUT /sync/medicines/{client_medicine_id}`
@@ -107,8 +113,17 @@ Authentication validates Telegram `initData` and issues a signed bearer token.
 otherwise. Never copy `.env` values into documentation or commits.
 
 Medicine synchronization is local-first and last-write-wins by `updated_at`.
-The server replaces the synced schedule collection when a newer medicine
-payload wins. Real history and adherence remain server-authoritative.
+The server replaces the synced schedule collection and catalogue snapshot when
+a newer medicine payload wins. Real history and adherence remain
+server-authoritative.
+
+`python -m app.catalog_update` resolves the latest hosted CSV through the
+`data.gov.ua` CKAN API, decodes its Windows-1251 semicolon format, validates it,
+and atomically replaces the local catalogue. Compose sets
+`CATALOG_AUTO_UPDATE=true` to check source freshness on startup. Catalogue
+search is public because its source data is public CC BY; medicine sync remains
+authenticated. The register is regulatory product metadata, not live retail
+SKU, price, or availability data.
 
 ## Frontend architecture and behavior
 
@@ -133,9 +148,17 @@ The dashboard exposes Taken/Skipped buttons when a server dose has an
 unresolved dispatch `event_id`. Real actionable doses use the API; local/demo
 fallback actions are recorded idempotently in isolated local storage. History
 can filter by period/status, group by day or medicine, and show a summary.
-Medicine form drafts are autosaved per create/edit context.
+Medicine form drafts are autosaved per create/edit context. New medicines can
+be entered manually or selected from the MOH catalogue. A catalogue selection
+prefills only read-only product identity/reference fields; intake amount,
+units, times, and schedule remain user-entered. Official instruction links are
+shown as attributed external references and must never be converted into
+personalized dosage or treatment advice.
 
-Settings links to rating and bug-report forms. Authenticated submissions are
+Settings includes synchronized Small/Regular/Large typography presets that
+apply a font scale across the Mini App; the local preview preserves the same
+preference in localStorage. Settings also links to rating and bug-report forms.
+Authenticated submissions are
 stored in the backend and relayed best-effort to the configured Telegram forum
 chat (rating topic 3, bug topic 5). Bug reports accept an optional JPEG, PNG,
 or WebP screenshot up to 8 MB. The frontend does not attach browser/device diagnostics.
@@ -151,7 +174,9 @@ Keep the source-of-truth split explicit:
 
 Use `.env.example` only as a key inventory. Required production values include
 `BOT_TOKEN`, a strong `JWT_SECRET`, `MINI_APP_URL`, `CORS_ALLOWED_ORIGINS`, and
-`TUNNEL_TOKEN`. Compose points the database at `/app/data/medalarm.db`.
+`TUNNEL_TOKEN`. Compose points the database at `/app/data/medalarm.db` and
+enables `CATALOG_AUTO_UPDATE`; local developers can refresh explicitly with
+`python -m app.catalog_update`.
 
 The backend CI workflow runs pytest, builds the Docker image, and validates the
 production Compose configuration. The Pages workflow runs all frontend logic

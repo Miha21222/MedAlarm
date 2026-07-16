@@ -25,6 +25,7 @@ class Settings:
     feedback_chat_id: int
     feedback_topic_id: int
     bug_report_topic_id: int
+    catalog_auto_update: bool = False
 
 
 def build_database_url(raw_path: str) -> str:
@@ -83,4 +84,5 @@ def load_settings() -> Settings:
         feedback_chat_id=int(os.getenv("FEEDBACK_CHAT_ID", "-1004421534137")),
         feedback_topic_id=int(os.getenv("FEEDBACK_TOPIC_ID", "3")),
         bug_report_topic_id=int(os.getenv("BUG_REPORT_TOPIC_ID", "5")),
+        catalog_auto_update=os.getenv("CATALOG_AUTO_UPDATE", "false").lower() in {"1", "true", "yes"},
     )

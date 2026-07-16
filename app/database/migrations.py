@@ -26,7 +26,14 @@ async def ensure_sqlite_compatibility(connection: AsyncConnection) -> None:
     if connection.dialect.name != "sqlite":
         return
 
-    await _add_columns(connection, "users", {"language": "VARCHAR(8) DEFAULT 'ru'"})
+    await _add_columns(
+        connection,
+        "users",
+        {
+            "language": "VARCHAR(8) DEFAULT 'ru'",
+            "text_size": "VARCHAR(16) DEFAULT 'regular'",
+        },
+    )
     await _add_columns(
         connection,
         "medicines",
@@ -34,6 +41,7 @@ async def ensure_sqlite_compatibility(connection: AsyncConnection) -> None:
             "client_medicine_id": "VARCHAR(64)",
             "updated_at": "DATETIME",
             "deleted_at": "DATETIME",
+            "catalog_snapshot": "JSON",
         },
     )
     await _add_columns(

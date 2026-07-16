@@ -1,3 +1,4 @@
+import { readSettings, SETTINGS_KEY } from "../src/features/storage";
 import { readStoredEnumValue, writeStoredEnumValue } from "../src/hooks/usePersistentEnumState";
 
 function assertEqual<T>(actual: T, expected: T): void {
@@ -65,6 +66,14 @@ function createWindowStub(initial: Record<string, string> = {}) {
     configurable: true,
     value: originalWindow,
   });
+}
+
+{
+  const validStorage = createWindowStub({ [SETTINGS_KEY]: JSON.stringify({ text_size: "large" }) }).localStorage;
+  assertEqual(readSettings(validStorage).text_size, "large");
+
+  const invalidStorage = createWindowStub({ [SETTINGS_KEY]: JSON.stringify({ text_size: "huge" }) }).localStorage;
+  assertEqual(readSettings(invalidStorage).text_size, "regular");
 }
 
 console.log("persistentEnumState tests passed");

@@ -41,6 +41,12 @@ async def test_newer_medicine_aggregate_replaces_schedules(db_session):
             name="New",
             dosage_text="2",
             comment="after food",
+            catalog={
+                "source": "moh_state_register",
+                "source_id": "record-1",
+                "trade_name": "New",
+                "registration_number": "UA/1/01/01",
+            },
             is_active=True,
             updated_at=newer,
             deleted_at=None,
@@ -60,6 +66,7 @@ async def test_newer_medicine_aggregate_replaces_schedules(db_session):
     assert applied is True
     assert stored is not None
     assert stored.name == "New"
+    assert stored.catalog_snapshot["registration_number"] == "UA/1/01/01"
     assert [slot.time for slot in stored.schedules] == ["07:30", "20:00"]
 
 

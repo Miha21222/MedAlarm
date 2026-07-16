@@ -1,9 +1,10 @@
-import type { UserSettings } from "../types";
+import type { TextSize, UserSettings } from "../types";
 
 export const SETTINGS_KEY = "medalarm.settings.v1";
 
 export const defaultSettings: UserSettings = {
   language: "ru",
+  text_size: "regular",
   timezone: "Europe/Kyiv",
   default_snooze_minutes: 10,
   remind_until_confirmed: true,
@@ -11,7 +12,13 @@ export const defaultSettings: UserSettings = {
 
 export function readSettings(storage: Pick<Storage, "getItem"> = localStorage): UserSettings {
   try {
-    return { ...defaultSettings, ...JSON.parse(storage.getItem(SETTINGS_KEY) ?? "{}") };
+    const stored = JSON.parse(storage.getItem(SETTINGS_KEY) ?? "{}") as Partial<UserSettings>;
+    const allowedTextSizes: TextSize[] = ["small", "regular", "large"];
+    return {
+      ...defaultSettings,
+      ...stored,
+      text_size: allowedTextSizes.includes(stored.text_size as TextSize) ? stored.text_size as TextSize : "regular",
+    };
   } catch {
     return defaultSettings;
   }

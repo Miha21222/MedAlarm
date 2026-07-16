@@ -36,11 +36,31 @@ class SchedulePayload(BaseModel):
         return value
 
 
+class MedicineCatalogSnapshot(BaseModel):
+    source: str = Field(pattern="^moh_state_register$")
+    source_id: str = Field(min_length=1, max_length=64)
+    trade_name: str = Field(min_length=1, max_length=512)
+    inn: str | None = Field(default=None, max_length=512)
+    form: str | None = Field(default=None, max_length=10000)
+    dispensing_conditions: str | None = Field(default=None, max_length=256)
+    active_ingredients: str | None = Field(default=None, max_length=10000)
+    pharmacotherapeutic_group: str | None = Field(default=None, max_length=10000)
+    atc_codes: str | None = Field(default=None, max_length=128)
+    applicant: str | None = Field(default=None, max_length=10000)
+    manufacturer: str | None = Field(default=None, max_length=10000)
+    registration_number: str | None = Field(default=None, max_length=128)
+    valid_from: str | None = Field(default=None, max_length=32)
+    valid_until: str | None = Field(default=None, max_length=64)
+    early_termination: str | None = Field(default=None, max_length=32)
+    instruction_url: str | None = Field(default=None, max_length=2000)
+
+
 class MedicinePayload(BaseModel):
     client_medicine_id: str = Field(min_length=1, max_length=64)
     name: str = Field(min_length=1, max_length=128)
     dosage_text: str = Field(min_length=1, max_length=128)
     comment: str | None = None
+    catalog: MedicineCatalogSnapshot | None = None
     is_active: bool = True
     updated_at: datetime
     deleted_at: datetime | None = None
@@ -53,6 +73,7 @@ class MedicineBatchPayload(BaseModel):
 
 class SettingsPatch(BaseModel):
     language: str | None = Field(default=None, pattern="^(ru|uk|en)$")
+    text_size: str | None = Field(default=None, pattern="^(small|regular|large)$")
     timezone: str | None = None
     default_snooze_minutes: int | None = Field(default=None, ge=1, le=180)
     remind_until_confirmed: bool | None = None

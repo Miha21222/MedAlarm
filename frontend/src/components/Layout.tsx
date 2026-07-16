@@ -33,7 +33,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const hasDraft = location.pathname !== "/medicines/new" && hasMedicineDraft("new");
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell text-size-${settings.text_size}`}>
       <header className="app-header">
         <Link to="/" className="emblem" aria-label="MedAlarm">
           <img src={emblemIcon} alt="" />

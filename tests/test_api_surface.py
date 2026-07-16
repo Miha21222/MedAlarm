@@ -31,6 +31,14 @@ def test_pages_origin_cors_preflight():
     assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
 
 
+def test_catalog_status_is_public():
+    with TestClient(app) as client:
+        response = client.get("/api/v1/catalog/status")
+    assert response.status_code == 200
+    assert response.json()["source_url"].startswith("https://data.gov.ua/")
+    assert response.json()["license"] == "CC BY"
+
+
 def test_sync_requires_bearer_authentication():
     with TestClient(app) as client:
         response = client.get("/api/v1/sync/bootstrap")

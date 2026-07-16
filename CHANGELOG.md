@@ -5,6 +5,25 @@ All notable changes to MedAlarm are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Added a CC BY catalogue importer for the Ukrainian Ministry of Health State
+  Register of Medicinal Products, with local normalized search across Ukrainian,
+  Russian, INN, ingredient, manufacturer, ATC, and registration fields.
+- Added public catalogue status/search API endpoints and an optional
+  startup freshness check for the production Compose service.
+- Added manual/catalogue entry choices to medicine creation. Catalogue selections
+  retain an official metadata snapshot through local-first synchronization and
+  expose form/package, ingredients, manufacturer, registration, dispensing,
+  ATC, attribution, and official instruction links on medicine details.
+- Kept intake amount and schedule explicitly user-entered; catalogue information
+  is read-only reference material and never generates treatment recommendations.
+- Added Small, Regular, and Large text-size presets in Settings. The preference
+  is persisted and synchronized, and scales typography throughout the Mini App;
+  Regular is now slightly larger than the previous default.
+
 ## [1.0.1] - 2026-07-13
 
 ### Fixed

@@ -36,7 +36,11 @@ are available at `/dev/loading`, `/dev/error`, and
 
 ### Backend development
 
+Import or refresh the openly licensed Ukrainian MOH State Register catalogue,
+then start the API:
+
 ```powershell
+python -m app.catalog_update
 uvicorn app.api.main:app --reload --host 0.0.0.0 --port 8000
 python -m app.bot_main
 python -m app.scheduler
@@ -54,6 +58,13 @@ CORS_ALLOWED_ORIGINS=https://your-pages-host
 The legacy SQLite schema is upgraded in place on startup. Medicines receive
 stable client IDs for local-first synchronization; reminder dispatch and intake
 records remain server-authoritative.
+
+The create-medicine screen supports manual entry and MOH catalogue search. The
+catalogue is imported from the official `data.gov.ua` State Register CSV under
+CC BY. It supplies product identity, form/package, ingredients, manufacturer,
+registration, ATC and official instruction links; the user always enters their
+own prescribed intake amount and schedule. Compose enables a source freshness
+check on backend startup with `CATALOG_AUTO_UPDATE=true`.
 
 ### Production deployment
 
