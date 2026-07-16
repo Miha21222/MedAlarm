@@ -1,116 +1,176 @@
-# MedAlarm
+<div align="center">
+  <img src="frontend/public/logo.png" alt="Логотип MedAlarm" width="128" />
+  <h1>MedAlarm</h1>
+  <p><strong>Простой Telegram-помощник для напоминаний о приёме лекарств</strong></p>
+  <p>
+    <a href="https://t.me/med_alarm_bot?start=app">Открыть в Telegram</a>
+    · <a href="https://github.com/Miha21222/MedAlarm/releases/latest">Последний релиз</a>
+    · <a href="CHANGELOG.md">История изменений</a>
+  </p>
+</div>
 
-The current production-candidate changes are recorded in
-[`CHANGELOG.md`](CHANGELOG.md). The remaining release and infrastructure work
-is tracked in the checklist in [`deploy/README.md`](deploy/README.md).
+> [!IMPORTANT]
+> MedAlarm не даёт медицинских рекомендаций, не подбирает дозировки и не
+> меняет схему лечения. Приложение напоминает только о тех лекарствах,
+> количестве и времени приёма, которые пользователь ввёл самостоятельно в
+> соответствии со своим назначением.
 
-## Telegram Mini App
+## Что умеет MedAlarm
 
-MedAlarm now includes a full-stack Telegram Mini App:
+- ⏰ Отправляет напоминания по заданному пользователем расписанию.
+- ✅ Позволяет отметить приём, пропустить его или отложить напоминание прямо в Telegram.
+- 💊 Хранит список лекарств, количество для одного приёма, комментарии и несколько времён в день.
+- 🔎 Поддерживает ручной ввод и поиск по официальному Государственному реестру лекарственных средств Украины.
+- 📊 Показывает план на сегодня и статистику соблюдения расписания.
+- 📜 Группирует историю по дням и лекарствам, поддерживает фильтры периода и статуса.
+- 🌐 Работает на русском, украинском и английском языках.
+- 🔤 Поддерживает три размера текста, тактильный отклик и голосовой ввод там, где это доступно.
+- 🔄 Сохраняет лекарства локально и синхронизирует их с сервером после авторизации через Telegram.
+- 📨 Принимает оценки и сообщения об ошибках, включая необязательный скриншот.
 
-- `frontend/` is the React + TypeScript + Vite interface.
-- `app/api/` is the FastAPI authentication, sync, dashboard, history, and
-  settings API.
-- `python -m app.bot_main` runs Telegram long polling.
-- `python -m app.scheduler` runs reminder scheduling.
-- `python -m app.runtime` supervises the API plus the existing bot/scheduler
-  runtime for Docker. Bot and scheduler intentionally remain together until
-  snoozes are persisted rather than held in process memory.
+## Как начать пользоваться
 
-### Frontend development
+1. Откройте [@med_alarm_bot](https://t.me/med_alarm_bot?start=app) и нажмите **Start** или отправьте `/start`.
+2. Нажмите **«Открыть MedAlarm»** в сообщении бота.
+3. На вкладке **«Лекарства»** нажмите `+`.
+4. Выберите способ добавления:
+   - **из каталога МОЗ** — найдите зарегистрированный препарат, затем самостоятельно укажите назначенное количество и время;
+   - **вручную** — заполните название, количество, комментарий и расписание самостоятельно.
+5. Сохраните лекарство. Оно появится в плане на сегодня и будет синхронизировано с сервером.
+6. Когда придёт реальное напоминание, отметьте **«Принял»**, **«Пропустить»** или **«Напомнить позже»**.
+7. Используйте вкладку **«История»**, чтобы посмотреть выполненные и пропущенные приёмы.
+
+Черновик формы сохраняется автоматически. Можно уйти со страницы, переключиться между ручным вводом и каталогом и вернуться без потери введённых данных.
+
+## Интерфейс
+
+На скриншотах включены демонстрационные данные — это примеры интерфейса, а не медицинские назначения.
+
+<table>
+  <tr>
+    <td align="center">
+      <img src="docs/screenshots/dashboard.png" alt="План приёма на сегодня" width="250" /><br />
+      <strong>План на сегодня</strong><br />Предстоящие приёмы и быстрые действия
+    </td>
+    <td align="center">
+      <img src="docs/screenshots/medicines.png" alt="Список лекарств" width="250" /><br />
+      <strong>Лекарства</strong><br />Количество, время и состояние синхронизации
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="docs/screenshots/add-medicine.png" alt="Добавление лекарства из каталога МОЗ" width="250" /><br />
+      <strong>Добавление</strong><br />Каталог МОЗ или ручной ввод
+    </td>
+    <td align="center">
+      <img src="docs/screenshots/history.png" alt="История приёмов" width="250" /><br />
+      <strong>История</strong><br />Статистика, периоды и фильтры
+    </td>
+  </tr>
+</table>
+
+## Как это работает
+
+MedAlarm состоит из четырёх частей:
+
+- **Telegram-бот** на `aiogram 3` регистрирует пользователя и доставляет напоминания.
+- **Планировщик** на APScheduler создаёт задания по сохранённому расписанию и восстанавливает отложенные напоминания после перезапуска.
+- **Backend API** на FastAPI и async SQLAlchemy проверяет Telegram `initData`, синхронизирует лекарства и обслуживает настройки, план, историю и обратную связь.
+- **Telegram Mini App** на React, TypeScript и Vite предоставляет мобильный интерфейс.
+
+Основные данные хранятся в SQLite. Лекарства синхронизируются по модели local-first с разрешением конфликтов по времени последнего изменения. Реальная история приёмов остаётся серверной и всегда привязана к событию напоминания.
+
+## Локальный запуск
+
+### Вариант 1: интерфейс с тестовой авторизацией
+
+Нужны Node.js 22+ и npm:
 
 ```powershell
 cd frontend
-npm.cmd install
-npm.cmd run dev
-npm.cmd run test:local
-npm.cmd run build
+npm install
+npm run dev:local
 ```
 
-Vite development mode uses a local Telegram identity stub and browser
-`localStorage`. Production builds require Telegram `initData`.
+Откройте `http://localhost:5173/`. Локальный preview использует тестовую Telegram-идентификацию и позволяет включить изолированный демо-режим. Демо-данные никогда не отправляются как настоящая история приёмов.
 
-When the local preview is running, development-only full-screen state previews
-are available at `/dev/loading`, `/dev/error`, and
-`/dev/open-in-telegram`. These paths are disabled in production builds.
+### Вариант 2: бот, API и планировщик в Docker
 
-### Backend development
-
-Import or refresh the openly licensed Ukrainian MOH State Register catalogue,
-then start the API:
+1. Скопируйте `.env.example` в `.env`.
+2. Укажите как минимум действительный `BOT_TOKEN`, безопасный `JWT_SECRET`, HTTPS-адрес Mini App и разрешённые CORS origins.
+3. Запустите стек:
 
 ```powershell
+docker compose up --build -d
+```
+
+Docker запускает API и общий процесс бота с планировщиком. Для production-профиля также доступен Cloudflare Tunnel.
+
+### Вариант 3: отдельные процессы для разработки
+
+Нужен Python 3.12+:
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
 python -m app.catalog_update
 uvicorn app.api.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+В отдельных терминалах:
+
+```powershell
 python -m app.bot_main
 python -m app.scheduler
 ```
 
-Add these values to the existing root `.env`:
+Для обычного локального запуска бота вместе с планировщиком можно использовать `python main.py`.
 
-```dotenv
-JWT_SECRET=replace-with-a-long-random-secret
-JWT_EXPIRE_MINUTES=1440
-MINI_APP_URL=https://your-pages-host/MedAlarm/
-CORS_ALLOWED_ORIGINS=https://your-pages-host
+## Проверка изменений
+
+```powershell
+python -m pytest
+cd frontend
+npm run test:local
+npm run build
 ```
 
-The legacy SQLite schema is upgraded in place on startup. Medicines receive
-stable client IDs for local-first synchronization; reminder dispatch and intake
-records remain server-authoritative.
+CI дополнительно собирает Docker-образ, проверяет production Compose и публикует Mini App на GitHub Pages после изменений в `main`.
 
-The create-medicine screen supports manual entry and MOH catalogue search. The
-catalogue is imported from the official `data.gov.ua` State Register CSV under
-CC BY. It supplies product identity, form/package, ingredients, manufacturer,
-registration, ATC and official instruction links; the user always enters their
-own prescribed intake amount and schedule. Compose enables a source freshness
-check on backend startup with `CATALOG_AUTO_UPDATE=true`.
+## Каталог лекарств
 
-### Production deployment
+Поиск использует открытые данные Государственного реестра лекарственных средств Украины с портала [data.gov.ua](https://data.gov.ua/) на условиях **CC BY**. Каталог предоставляет только справочные сведения: название, форму выпуска, состав, производителя, регистрационные данные, ATC и ссылку на официальную инструкцию. Количество и расписание всегда вводит пользователь.
 
-Production uses GitHub Pages for the frontend and a single Hostinger VPS
-Compose stack behind Cloudflare Tunnel for the API, bot, and scheduler. Start
-from `.env.example`; never reuse development secrets. The complete first
-deployment, tagged-release, backup, restore, and rollback procedure is in
-[`deploy/README.md`](deploy/README.md).
+Обновить локальную копию каталога:
 
-The production stack intentionally supports one backend replica while it uses
-SQLite and Telegram long polling. Mini App schedule changes are reconciled by
-the scheduler, and pending snoozes are restored after container restarts.
+```powershell
+python -m app.catalog_update
+```
 
-Settings now includes authenticated rating and bug-report forms. Submissions
-are stored in SQLite and relayed best-effort to configured Telegram forum
-topics; bug reports may include a JPEG, PNG, or WebP screenshot up to 8 MB.
-Demo data is development-only and cannot be enabled by a production build.
+## Развёртывание и обслуживание
 
-Telegram-бот для напоминаний о приёме лекарств (MVP на `aiogram 3`, `SQLite`, `SQLAlchemy`, `APScheduler`).
+Production использует один backend-контейнер на VPS, постоянный SQLite volume, Telegram long polling и Cloudflare Tunnel. Не запускайте несколько backend-реплик, пока приложение использует SQLite и единый процесс Telegram polling.
 
-## Возможности MVP
-- `/start` регистрирует пользователя и предлагает открыть Mini App.
-- Лекарства, расписание, история и настройки доступны в Mini App.
-- Напоминания с inline-кнопками: `✅ Принял`, `⏰ Напомнить через 10 минут`, `⏭ Пропустить`.
+Инструкции по первому развёртыванию, релизам, резервному копированию, восстановлению и откату находятся в [`deploy/README.md`](deploy/README.md).
 
-## Быстрый запуск локально
-1. Создайте окружение и установите зависимости:
-   - `python -m venv .venv`
-   - `.venv\Scripts\activate`
-   - `pip install -r requirements.txt`
-2. Создайте `.env` на основе `.env.example` и заполните `BOT_TOKEN`.
-3. Запустите бота:
-   - `python main.py`
+## Структура проекта
 
-## Запуск в Docker
-1. Подготовьте `.env`.
-2. Выполните:
-   - `docker compose up --build -d`
+```text
+app/
+├── api/          # FastAPI API и Telegram-аутентификация
+├── database/     # SQLAlchemy-модели, сессии и SQLite-миграции
+├── handlers/     # /start, /app и действия из напоминаний
+├── scheduler/    # задания APScheduler и доставка напоминаний
+└── services/     # бизнес-логика и запросы к базе данных
+frontend/         # React/Vite Telegram Mini App
+tests/            # backend-тесты
+frontend/tests/   # тесты чистой frontend-логики
+deploy/           # релизы, backup, restore и production-инструкции
+```
 
-## Структура
-- `app/config.py` - конфиг приложения.
-- `app/database` - модели и подключение к БД.
-- `app/handlers` - команды и callback-обработчики.
-- `app/services` - бизнес-логика.
-- `app/scheduler` - APScheduler и задачи напоминаний.
-- `tests` - unit/integration тесты.
+## Лицензии и ответственность
 
-## Важное ограничение
-Бот не даёт медицинские рекомендации, не подбирает дозировки и не меняет схему лечения. Он только напоминает по данным, которые ввёл пользователь.
+Исходный код проекта распространяется согласно файлу лицензии репозитория, если он присутствует. Данные украинского Государственного реестра используются с обязательной атрибуцией по лицензии CC BY.
+
+MedAlarm — инструмент организации напоминаний, а не медицинская информационная система. По вопросам назначения, изменения или отмены лечения необходимо обращаться к квалифицированному медицинскому специалисту.
