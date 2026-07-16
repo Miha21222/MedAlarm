@@ -7,6 +7,16 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Removed the legacy Telegram text/inline menu; `/start` and `/app` now expose
+  only the Mini App entry point while reminder actions remain in chat.
+
+### Fixed
+
+- Medicine creation now restores the last-used manual or catalogue entry mode
+  together with all autosaved manual draft values after navigating back.
+
 ## [1.1.0] - 2026-07-16
 
 ### Added

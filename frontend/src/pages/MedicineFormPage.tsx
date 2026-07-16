@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { BookOpen, Check, Clock3, Eraser, Info, PenLine, Plus, Search, Trash2 } from "lucide-react";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { searchMedicineCatalog } from "../api/catalog";
 import { MedicineCatalogDetails } from "../components/MedicineCatalogDetails";
@@ -8,7 +8,12 @@ import { MicButton } from "../components/MicButton";
 import { useAppSettings } from "../contexts/AppSettingsContext";
 import { useToast } from "../contexts/ToastContext";
 import { updateMedicineInCache } from "../features/medicines/cache";
-import { clearMedicineDraft, readMedicineDraft, writeMedicineDraft } from "../features/medicines/draftStorage";
+import {
+  clearMedicineDraft,
+  readMedicineDraft,
+  writeMedicineDraft,
+  type ManualMedicineDraftValues,
+} from "../features/medicines/draftStorage";
 import { createLocalMedicine, getLocalMedicine, updateLocalMedicine } from "../features/medicines/localMedicineRepository";
 import { useSpeechInput } from "../hooks/useSpeechInput";
 import type { MedicineCatalogReference } from "../types";
@@ -34,7 +39,9 @@ export function MedicineFormPage() {
   const parsedDosage = parseDosageText(existing?.dosage_text ?? "");
 
   const initialCatalog = savedDraft?.catalog ?? existing?.catalog ?? null;
-  const [entryMode, setEntryMode] = useState<EntryMode>(initialCatalog || !medicineId ? "catalog" : "manual");
+  const initialEntryMode: EntryMode = savedDraft?.entryMode
+    ?? (savedDraft ? (initialCatalog || !savedDraft.name.trim() ? "catalog" : "manual") : initialCatalog || !medicineId ? "catalog" : "manual");
+  const [entryMode, setEntryMode] = useState<EntryMode>(initialEntryMode);
   const [catalog, setCatalog] = useState<MedicineCatalogReference | null>(initialCatalog);
   const [catalogQuery, setCatalogQuery] = useState("");
   const [catalogResults, setCatalogResults] = useState<MedicineCatalogReference[]>([]);
@@ -48,10 +55,31 @@ export function MedicineFormPage() {
   const [times, setTimes] = useState<string[]>(
     savedDraft?.times.length ? savedDraft.times : existing?.schedules.map((slot) => slot.time) ?? ["09:00"],
   );
+  const manualValues = (): ManualMedicineDraftValues => ({ name, amount, unit, comment, times });
+  const manualDraftRef = useRef<ManualMedicineDraftValues>(
+    savedDraft?.manual
+      ?? (initialEntryMode === "manual" || (savedDraft && !initialCatalog)
+        ? {
+            name: savedDraft?.name ?? existing?.name ?? "",
+            amount: savedDraft?.amount ?? parsedDosage.amount,
+            unit: savedDraft?.unit ?? parsedDosage.unit,
+            comment: savedDraft?.comment ?? existing?.comment ?? "",
+            times: savedDraft?.times.length ? savedDraft.times : existing?.schedules.map((slot) => slot.time) ?? ["09:00"],
+          }
+        : {
+            name: "",
+            amount: parsedDosage.amount,
+            unit: parsedDosage.unit,
+            comment: "",
+            times: ["09:00"],
+          }),
+  );
 
   useEffect(() => {
-    writeMedicineDraft({ context: draftContext, name, amount, unit, comment, times, catalog });
-  }, [amount, catalog, comment, draftContext, name, times, unit]);
+    const manual = entryMode === "manual" ? manualValues() : manualDraftRef.current;
+    if (entryMode === "manual") manualDraftRef.current = manual;
+    writeMedicineDraft({ context: draftContext, entryMode, manual, name, amount, unit, comment, times, catalog });
+  }, [amount, catalog, comment, draftContext, entryMode, name, times, unit]);
 
   useEffect(() => {
     const query = catalogQuery.trim();
@@ -109,16 +137,31 @@ export function MedicineFormPage() {
   };
 
   const selectMode = (mode: EntryMode) => {
+    if (mode === entryMode) return;
+    if (entryMode === "manual") manualDraftRef.current = manualValues();
     setEntryMode(mode);
     if (mode === "manual") {
+      const manual = manualDraftRef.current;
       setCatalog(null);
-      if (!existing) setName("");
+      setName(manual.name);
+      setAmount(manual.amount);
+      setUnit(manual.unit);
+      setComment(manual.comment);
+      setTimes(manual.times);
     }
     hapticImpact("light");
   };
 
   const clearForm = () => {
     const originalCatalog = existing?.catalog ?? null;
+    const originalTimes = existing?.schedules.map((slot) => slot.time) ?? ["09:00"];
+    manualDraftRef.current = {
+      name: existing?.name ?? "",
+      amount: parsedDosage.amount,
+      unit: parsedDosage.unit,
+      comment: existing?.comment ?? "",
+      times: originalTimes,
+    };
     setCatalog(originalCatalog);
     setEntryMode(originalCatalog ? "catalog" : medicineId ? "manual" : "catalog");
     setCatalogQuery("");
@@ -126,7 +169,7 @@ export function MedicineFormPage() {
     setAmount(parsedDosage.amount);
     setUnit(parsedDosage.unit);
     setComment(existing?.comment ?? "");
-    setTimes(existing?.schedules.map((slot) => slot.time) ?? ["09:00"]);
+    setTimes(originalTimes);
     clearMedicineDraft();
     hapticImpact("light");
   };
