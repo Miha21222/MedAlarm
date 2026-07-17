@@ -1,23 +1,36 @@
 import type { HistoryItem } from "../../types";
-import { dayKeyInTimezone, formatDayInTimezone } from "../../utils/dateTime";
+import { dayKeyInTimezone, formatDayInTimezone, getZonedCalendarPeriodRange } from "../../utils/dateTime";
 
 // History logs only ever carry a resolved status (never "pending" — that only
 // applies to today's not-yet-acted-on doses), so the filter/group vocabulary
 // here is deliberately narrower than the full DoseStatus union.
 export type HistoryStatusFilter = "all" | "taken" | "skipped" | "missed" | "snoozed";
 export type HistoryGroupBy = "none" | "day" | "medicine";
+export type HistoryPeriod = "today" | "week" | "month";
 
 export interface HistoryFilters {
   status: HistoryStatusFilter;
   medicine?: string;
+  period?: HistoryPeriod;
+  timezone?: string;
+  now?: Date;
 }
 
 export const ALL_MEDICINES = "all";
 
 export function filterHistory(items: HistoryItem[], filters: HistoryFilters): HistoryItem[] {
+  const now = filters.now ?? new Date();
+  const periodRange = filters.period
+    ? getZonedCalendarPeriodRange(now, filters.timezone ?? "UTC", filters.period)
+    : null;
+
   return items.filter((item) => {
     if (filters.status !== "all" && item.status !== filters.status) return false;
     if (filters.medicine && filters.medicine !== ALL_MEDICINES && item.medicine !== filters.medicine) return false;
+    if (periodRange !== null) {
+      const scheduledAt = Date.parse(item.scheduled_at);
+      if (!Number.isFinite(scheduledAt) || scheduledAt < periodRange.start || scheduledAt >= periodRange.end) return false;
+    }
     return true;
   });
 }

@@ -1,5 +1,6 @@
 import { ExternalLink, Landmark, ShieldCheck } from "lucide-react";
 import { useAppSettings } from "../contexts/AppSettingsContext";
+import { catalogCardSummary } from "../features/medicines/catalogPresentation";
 import type { MedicineCatalogReference } from "../types";
 
 const DATASET_URL = "https://data.gov.ua/dataset/reestr_likarskyh_zasobiv_moz";
@@ -20,7 +21,11 @@ export function MedicineCatalogDetails({ catalog, condensed = false }: {
 }) {
   const { t } = useAppSettings();
   const instructionUrl = safeExternalUrl(catalog.instruction_url);
-  const fields = [
+  const fields = (condensed ? [
+    [t("inn"), catalog.inn],
+    [t("briefDescription"), catalogCardSummary(catalog)],
+    [t("dispensing"), catalog.dispensing_conditions],
+  ] : [
     [t("inn"), catalog.inn],
     [t("formAndPackage"), catalog.form],
     [t("activeIngredients"), catalog.active_ingredients],
@@ -32,7 +37,7 @@ export function MedicineCatalogDetails({ catalog, condensed = false }: {
     [t("earlyTermination"), catalog.early_termination],
     [t("atc"), catalog.atc_codes],
     [t("dispensing"), catalog.dispensing_conditions],
-  ].filter((field): field is [string, string] => Boolean(field[1]));
+  ]).filter((field): field is [string, string] => Boolean(field[1]));
 
   return (
     <article className={`catalog-details${condensed ? " condensed" : ""}`}>
@@ -51,13 +56,13 @@ export function MedicineCatalogDetails({ catalog, condensed = false }: {
           </div>
         ))}
       </dl>
-      {instructionUrl ? (
+      {!condensed && instructionUrl ? (
         <a className="catalog-instruction-link" href={instructionUrl} target="_blank" rel="noreferrer noopener">
           <ExternalLink size={16} />
           {t("openInstruction")}
         </a>
       ) : null}
-      <p className="catalog-disclaimer"><ShieldCheck size={16} />{t("medicalDisclaimer")}</p>
+      {!condensed ? <p className="catalog-disclaimer"><ShieldCheck size={16} />{t("medicalDisclaimer")}</p> : null}
       <a className="catalog-attribution" href={DATASET_URL} target="_blank" rel="noreferrer noopener">
         {t("sourceAttribution")}
       </a>

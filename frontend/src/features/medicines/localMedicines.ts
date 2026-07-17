@@ -25,12 +25,15 @@ export function writeMedicineStore(medicines: Medicine[], storage: Pick<Storage,
 
 export function createMedicine(
   input: Pick<Medicine, "name" | "dosage_text" | "comment" | "schedules" | "catalog">,
+  createdAt = new Date(),
 ): Medicine {
-  const now = new Date().toISOString();
+  const now = createdAt.toISOString();
   return {
     ...input,
+    catalog: input.catalog ?? null,
     client_medicine_id: crypto.randomUUID(),
     is_active: true,
+    created_at: now,
     updated_at: now,
     deleted_at: null,
     syncState: "pending",
@@ -44,6 +47,7 @@ export function updateMedicine(
   return {
     ...existing,
     ...input,
+    catalog: input.catalog ?? null,
     updated_at: new Date().toISOString(),
     deleted_at: null,
     syncState: "pending",

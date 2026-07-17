@@ -1,6 +1,6 @@
 # MedAlarm Repository Context
 
-Last verified from the working tree: **2026-07-16**.
+Last verified from the working tree: **2026-07-17**.
 
 This is the current-state handoff for contributors and coding agents. Read it
 with `AGENTS.md`, which contains the binding repository rules. Do not treat
@@ -11,13 +11,10 @@ remaining release and infrastructure work is tracked in `deploy/README.md`.
 
 ## Repository status
 
-- Current branch: `feat-fullstack-mini-app`.
-- `HEAD`: `28f4760` (`chore: fix backend deps for Docker, add CI, JWT fail-fast, refresh docs`).
-- Branch base visible locally: `main`/`origin/main` at `c124aa7`.
-- The working tree is intentionally **not clean**: this snapshot has 45
-  tracked changes and 29 untracked paths spanning backend, frontend,
-  deployment, CI, and tests. Preserve them; do not reset or assume every
-  current feature is committed.
+- Current integration branch: `stage`; pull requests target `main`.
+- The current history/dashboard/catalogue UX pass is developed and validated
+  on `stage`. Inspect `git status` before editing and preserve any unrelated
+  local runtime files.
 - If Windows ownership blocks Git, use a one-shot command such as
   `git -c safe.directory=C:/Users/Admin/Documents/MedAlarm status`.
 
@@ -120,7 +117,10 @@ server-authoritative.
 
 `python -m app.catalog_update` resolves the latest hosted CSV through the
 `data.gov.ua` CKAN API, decodes its Windows-1251 semicolon format, validates it,
-and atomically replaces the local catalogue. Compose sets
+deduplicates equivalent registered forms, and atomically replaces the local
+catalogue. Search also deduplicates existing data, and visually similar but
+legitimately distinct results expose a compact registration/manufacturer
+identifier. Compose sets
 `CATALOG_AUTO_UPDATE=true` to check source freshness on startup. Catalogue
 search is public because its source data is public CC BY; medicine sync remains
 authenticated. The register is regulatory product metadata, not live retail
@@ -147,13 +147,18 @@ The main divisions are:
 
 The dashboard exposes Taken/Skipped buttons when a server dose has an
 unresolved dispatch `event_id`. Real actionable doses use the API; local/demo
-fallback actions are recorded idempotently in isolated local storage. History
-can filter by period/status, group by day or medicine, and show a summary.
-Medicine form drafts are autosaved per create/edit context. New medicines can
-be entered manually or selected from the MOH catalogue. A catalogue selection
+fallback actions are recorded idempotently in isolated local storage. A newly
+created medicine includes only schedule slots at or after its creation minute
+on that first local day; earlier slots begin on the next applicable day.
+History can filter by status and by the user's current calendar day,
+Monday-to-Sunday week, or calendar month, group by day or medicine, and show a
+summary. Medicine form drafts are autosaved per create/edit context. New
+medicines can be entered manually or selected from the MOH catalogue, with the
+same schedule, dashboard, sync, and history rules. A catalogue selection
 prefills only read-only product identity/reference fields; intake amount,
-units, times, and schedule remain user-entered. Official instruction links are
-shown as attributed external references and must never be converted into
+units, times, and schedule remain user-entered. Search and selected-medicine
+cards show compact identity/form/strength/dispensing information while
+retaining source attribution; catalogue data must never be converted into
 personalized dosage or treatment advice.
 
 Settings includes synchronized Small/Regular/Large typography presets that
@@ -196,9 +201,10 @@ npm run build
 Backend tests cover services, API/auth/schema behavior, models/migrations,
 scheduling, reminder delivery, and Mini App keyboard integration. Frontend
 tests are plain TypeScript/Node checks for local medicine sync, demo/preview
-medicines, local intake history, daily completion, auth gating, Telegram
-helpers, haptics, persistent enum state, and history analysis. There is no
-browser/component-level automated frontend suite yet.
+medicines and catalogue presentation, local intake history, dashboard today
+planning, daily completion, auth gating, Telegram helpers, haptics, persistent
+enum state, and history analysis. There is no browser/component-level
+automated frontend suite yet.
 
 ## Handoff cautions
 

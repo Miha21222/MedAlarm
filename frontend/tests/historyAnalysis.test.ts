@@ -42,6 +42,39 @@ assert(
   filterHistory(items, { status: "taken", medicine: "Vitamin D" }).length === 1,
   "combined filters intersect",
 );
+for (const status of ["taken", "skipped", "missed", "snoozed"] as const) {
+  const statusItems = [...items, item({ event_id: "5", status: "snoozed" })];
+  assert(
+    filterHistory(statusItems, { status }).every((entry) => entry.status === status),
+    `${status} filter keeps only its matching status`,
+  );
+}
+
+const periodNow = new Date("2026-07-08T01:30:00.000Z");
+const periodItems = [
+  item({ event_id: "today", scheduled_at: "2026-07-07T21:15:00.000Z" }),
+  item({ event_id: "yesterday", scheduled_at: "2026-07-07T20:59:59.000Z" }),
+  item({ event_id: "week", scheduled_at: "2026-07-02T01:30:00.000Z" }),
+  item({ event_id: "month", scheduled_at: "2026-06-15T01:30:00.000Z" }),
+  item({ event_id: "old", scheduled_at: "2026-05-01T01:30:00.000Z" }),
+];
+assert(
+  filterHistory(periodItems, { status: "all", period: "today", timezone: "Europe/Kyiv", now: periodNow })
+    .map((entry) => entry.event_id).join(",") === "today",
+  "today uses the user's calendar day rather than a rolling 24-hour window",
+);
+assert(
+  filterHistory(periodItems, { status: "all", period: "week", timezone: "Europe/Kyiv", now: periodNow }).length === 2,
+  "week keeps only entries from the current Monday-to-Sunday calendar week",
+);
+assert(
+  filterHistory(periodItems, { status: "all", period: "month", timezone: "Europe/Kyiv", now: periodNow }).length === 3,
+  "month keeps only entries from the current calendar month",
+);
+assert(
+  filterHistory(periodItems, { status: "taken", period: "today", timezone: "Europe/Kyiv", now: periodNow }).length === 1,
+  "period and status filters intersect",
+);
 
 // listHistoryMedicineNames
 assert(

@@ -1,5 +1,5 @@
 import type { DoseStatus, HistoryItem, Medicine } from "../../types";
-import { getZonedDayRange, zonedDateTimeToUtcTimestamp, zonedDayKeyFromTimestamp } from "../../utils/dateTime";
+import { getZonedCalendarPeriodRange, getZonedDayRange, zonedDateTimeToUtcTimestamp, zonedDayKeyFromTimestamp } from "../../utils/dateTime";
 import { isDemoModeEnabled } from "../demo/demoMode";
 import { buildPreviewHistory } from "./previewMedicines";
 
@@ -45,19 +45,17 @@ function eventIdFor(medicine: Medicine, timezone: string, now: Date): string {
   return `local-${medicine.client_medicine_id}-${dayKey}-${time}`;
 }
 
-function periodStart(period: "today" | "week" | "month", now: Date): number {
-  if (period === "today") return new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const days = period === "week" ? 7 : 30;
-  return now.getTime() - days * 24 * 60 * 60 * 1000;
-}
-
 export function readLocalIntakeHistory(
   period: "today" | "week" | "month" = "month",
   storage: Pick<Storage, "getItem"> = localStorage,
   now = new Date(),
+  timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
 ): HistoryItem[] {
-  const start = periodStart(period, now);
-  const inPeriod = (item: HistoryItem) => Date.parse(item.scheduled_at) >= start;
+  const { start, end } = getZonedCalendarPeriodRange(now, timezone, period);
+  const inPeriod = (item: HistoryItem) => {
+    const scheduledAt = Date.parse(item.scheduled_at);
+    return scheduledAt >= start && scheduledAt < end;
+  };
 
   // Demo mode overlays generated fixture history (buildPreviewHistory, never
   // persisted) with whatever the user has actually clicked during this demo
@@ -67,7 +65,7 @@ export function readLocalIntakeHistory(
   if (!isDemoModeEnabled()) {
     return live.sort((left, right) => Date.parse(right.scheduled_at) - Date.parse(left.scheduled_at));
   }
-  const synthetic = buildPreviewHistory(now).filter(inPeriod);
+  const synthetic = buildPreviewHistory(now, timezone).filter(inPeriod);
   return [...live, ...synthetic].sort((left, right) => Date.parse(right.scheduled_at) - Date.parse(left.scheduled_at));
 }
 

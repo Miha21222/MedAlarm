@@ -42,7 +42,7 @@ export function MedicineDetailPage() {
           ))}
         </div>
       </article>
-      {medicine.catalog ? <MedicineCatalogDetails catalog={medicine.catalog} /> : null}
+      {medicine.catalog ? <MedicineCatalogDetails catalog={medicine.catalog} condensed /> : null}
       <Link className="primary-btn full" to={`/medicines/${medicine.client_medicine_id}/edit`}>
         {t("editMedicine")}
       </Link>

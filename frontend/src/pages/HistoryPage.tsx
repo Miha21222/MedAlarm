@@ -10,6 +10,7 @@ import {
   groupHistory,
   summarizeHistory,
   type HistoryGroupBy,
+  type HistoryPeriod,
   type HistoryStatusFilter,
 } from "../features/history/historyAnalysis";
 import { usePersistentEnumState } from "../hooks/usePersistentEnumState";
@@ -17,9 +18,8 @@ import type { TranslationKey } from "../i18n";
 import type { HistoryItem } from "../types";
 import { formatInTimezone } from "../utils/dateTime";
 
-const PERIODS = ["today", "week", "month"] as const;
-type Period = (typeof PERIODS)[number];
-const PERIOD_LABELS: Record<Period, TranslationKey> = {
+const PERIODS: HistoryPeriod[] = ["today", "week", "month"];
+const PERIOD_LABELS: Record<HistoryPeriod, TranslationKey> = {
   today: "periodToday",
   week: "periodWeek",
   month: "periodMonth",
@@ -47,17 +47,26 @@ const STATUS_LABELS: Record<HistoryStatusFilter, TranslationKey> = {
 export function HistoryPage() {
   const { t, settings } = useAppSettings();
   const [items, setItems] = useState<HistoryItem[]>([]);
-  const period = usePersistentEnumState<Period>("medalarm.history.period", "month", PERIODS);
+  const period = usePersistentEnumState<HistoryPeriod>("medalarm.history.period", "month", PERIODS);
   const groupBy = usePersistentEnumState<HistoryGroupBy>("medalarm.history.groupBy", "none", GROUP_OPTIONS);
   const [status, setStatus] = useState<HistoryStatusFilter>("all");
   const [demoEnabled] = useDemoModeEnabled();
 
   useEffect(() => {
-    void fetchHistory(period.value).then(setItems);
-  }, [period.value, demoEnabled]);
+    let active = true;
+    void fetchHistory(period.value, settings.timezone).then((nextItems) => {
+      if (active) setItems(nextItems);
+    });
+    return () => {
+      active = false;
+    };
+  }, [period.value, demoEnabled, settings.timezone]);
 
   const effectiveGroupBy = period.value === "today" ? "none" : groupBy.value;
-  const filtered = useMemo(() => filterHistory(items, { status }), [items, status]);
+  const filtered = useMemo(
+    () => filterHistory(items, { status, period: period.value, timezone: settings.timezone }),
+    [items, status, period.value, settings.timezone],
+  );
   const groups = useMemo(
     () => groupHistory(filtered, effectiveGroupBy, settings.timezone, settings.language),
     [filtered, effectiveGroupBy, settings.timezone, settings.language],
@@ -95,7 +104,7 @@ export function HistoryPage() {
 
       <div className="history-filters">
         <div className="history-filter-row">
-          <select value={period.value} onChange={(event) => period.setValue(event.target.value as Period)}>
+          <select value={period.value} onChange={(event) => period.setValue(event.target.value as HistoryPeriod)}>
             {PERIODS.map((option) => (
               <option key={option} value={option}>
                 {t(PERIOD_LABELS[option])}

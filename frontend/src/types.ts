@@ -35,6 +35,7 @@ export interface Medicine {
   comment: string | null;
   catalog?: MedicineCatalogReference | null;
   is_active: boolean;
+  created_at?: string;
   updated_at: string;
   deleted_at: string | null;
   schedules: ScheduleSlot[];

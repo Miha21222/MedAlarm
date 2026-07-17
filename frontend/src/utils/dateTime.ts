@@ -138,3 +138,34 @@ export function getZonedDayRange(now: Date, timezone: string): { start: number; 
     end: zonedDateTimeToUtcTimestamp(tomorrowKey, "00:00", timezone) ?? now.getTime(),
   };
 }
+
+export function getZonedCalendarPeriodRange(
+  now: Date,
+  timezone: string,
+  period: "today" | "week" | "month",
+): { start: number; end: number } {
+  if (period === "today") return getZonedDayRange(now, timezone);
+
+  const todayKey = zonedDayKeyFromTimestamp(now.getTime(), timezone);
+  const parts = splitDayKey(todayKey);
+  if (!parts) return { start: now.getTime(), end: now.getTime() };
+  const [year, month, day] = parts;
+
+  let startKey: string;
+  let endKey: string;
+  if (period === "week") {
+    const sundayBasedWeekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+    const daysSinceMonday = sundayBasedWeekday === 0 ? 6 : sundayBasedWeekday - 1;
+    startKey = addDaysToDayKey(todayKey, -daysSinceMonday);
+    endKey = addDaysToDayKey(startKey, 7);
+  } else {
+    startKey = `${year}-${String(month).padStart(2, "0")}-01`;
+    const nextMonth = new Date(Date.UTC(year, month, 1));
+    endKey = `${nextMonth.getUTCFullYear()}-${String(nextMonth.getUTCMonth() + 1).padStart(2, "0")}-01`;
+  }
+
+  return {
+    start: zonedDateTimeToUtcTimestamp(startKey, "00:00", timezone) ?? now.getTime(),
+    end: zonedDateTimeToUtcTimestamp(endKey, "00:00", timezone) ?? now.getTime(),
+  };
+}

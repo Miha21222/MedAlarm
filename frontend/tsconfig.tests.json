@@ -12,6 +12,7 @@
     "src/features/medicines/localIntakeHistory.ts",
     "src/features/medicines/previewMedicines.ts",
     "src/features/history/historyAnalysis.ts",
+    "src/features/dashboard/todayPlan.ts",
     "src/features/demo/demoMode.ts",
     "src/types.ts",
     "src/authGate.ts",

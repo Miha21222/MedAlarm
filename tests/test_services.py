@@ -107,7 +107,7 @@ async def test_history_filters_by_period(db_session):
         select(MedicineSchedule.id).where(MedicineSchedule.medicine_id == medicine.id)
     )
     assert schedule_id is not None
-    within_week = datetime.now(UTC) - timedelta(days=2)
+    within_week = datetime.now(UTC) - timedelta(minutes=1)
     out_of_month = datetime.now(UTC) - timedelta(days=40)
     await IntakeService.log_dispatch(
         db_session,

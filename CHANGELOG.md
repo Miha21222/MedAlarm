@@ -7,6 +7,31 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Added timezone-aware local-preview fixtures for today's intake history and
+  MOH catalogue search, including catalogue-linked demo medicines.
+
+### Changed
+
+- History periods now use the user's current calendar day, Monday-to-Sunday
+  week, and calendar month instead of rolling 24-hour, 7-day, and 30-day
+  windows.
+- Condensed MOH search and medicine detail cards to Ukrainian name, Latin INN,
+  form/strength summary, and dispensing conditions, with compact source help.
+- MOH catalogue imports and searches now collapse duplicate registered forms;
+  genuinely distinct but visually similar results include registration and
+  manufacturer differentiators.
+
+### Fixed
+
+- Fixed dashboard and history timezone boundaries, stale request races, local
+  weekday selection, and local scheduled timestamp conversion.
+- Newly created medicines now show only intake times at or after their creation
+  minute on the first day; earlier times begin on the next applicable day.
+- Applied creation, sync, dashboard, and history rules equally to manually
+  entered and MOH catalogue-linked medicines.
+
 ## [1.1.1] - 2026-07-16
 
 ### Changed

@@ -4,8 +4,10 @@ import csv
 import io
 import re
 import unicodedata
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import TypeVar
 
 import httpx
 from sqlalchemy import delete, func, insert, select
@@ -45,6 +47,56 @@ def _join_unique(values: list[str | None], separator: str = "; ") -> str | None:
         if cleaned and cleaned not in result:
             result.append(cleaned)
     return separator.join(result) or None
+
+
+_CatalogItem = TypeVar("_CatalogItem")
+
+
+def _catalog_value(item: object, field: str) -> str:
+    value = item.get(field) if isinstance(item, Mapping) else getattr(item, field, None)
+    return str(value or "")
+
+
+def catalog_duplicate_key(item: object) -> tuple[str, ...]:
+    registration = normalize_catalog_text(_catalog_value(item, "registration_number"))
+    name = normalize_catalog_text(_catalog_value(item, "trade_name"))
+    inn = normalize_catalog_text(_catalog_value(item, "inn"))
+    form = normalize_catalog_text(_catalog_value(item, "form"))
+    if registration:
+        return "registration", registration, name, inn, form
+    return (
+        "display",
+        name,
+        inn,
+        form,
+        normalize_catalog_text(_catalog_value(item, "active_ingredients")),
+        normalize_catalog_text(_catalog_value(item, "manufacturer")),
+    )
+
+
+def _catalog_record_score(item: object) -> tuple[int, int, int]:
+    termination = normalize_catalog_text(_catalog_value(item, "early_termination"))
+    not_terminated = 1 if termination in {"ни", "no", "not terminated", "false", "0"} else 0
+    unrestricted = 1 if "необмеж" in normalize_catalog_text(_catalog_value(item, "valid_until")) else 0
+    complete_fields = sum(
+        bool(_catalog_value(item, field))
+        for field in (
+            "inn", "form", "dispensing_conditions", "active_ingredients", "pharmacotherapeutic_group",
+            "atc_codes", "applicant", "manufacturer", "registration_number", "valid_from", "valid_until",
+            "instruction_url",
+        )
+    )
+    return not_terminated, unrestricted, complete_fields
+
+
+def deduplicate_catalog_items(items: list[_CatalogItem]) -> list[_CatalogItem]:
+    unique: dict[tuple[str, ...], _CatalogItem] = {}
+    for item in items:
+        key = catalog_duplicate_key(item)
+        current = unique.get(key)
+        if current is None or _catalog_record_score(item) > _catalog_record_score(current):
+            unique[key] = item
+    return list(unique.values())
 
 
 def parse_registry_csv(content: bytes, *, minimum_records: int = 1000) -> list[dict[str, object]]:
@@ -88,6 +140,7 @@ def parse_registry_csv(content: bytes, *, minimum_records: int = 1000) -> list[d
             )
         )
         records.append(record)
+    records = deduplicate_catalog_items(records)
     if len(records) < minimum_records:
         raise ValueError("MOH registry CSV contains too few valid records")
     return records
@@ -115,6 +168,22 @@ class MedicineCatalogService:
         )
 
     @staticmethod
+    async def cleanup_duplicates(session: AsyncSession) -> int:
+        stored = list((await session.scalars(select(CatalogMedicine))).all())
+        unique = deduplicate_catalog_items(stored)
+        keep_ids = {item.source_id for item in unique}
+        duplicate_ids = [item.source_id for item in stored if item.source_id not in keep_ids]
+        for offset in range(0, len(duplicate_ids), 1000):
+            await session.execute(
+                delete(CatalogMedicine).where(CatalogMedicine.source_id.in_(duplicate_ids[offset : offset + 1000]))
+            )
+        metadata = await session.get(CatalogMetadata, CATALOG_KEY)
+        if metadata is not None:
+            metadata.record_count = len(unique)
+        await session.flush()
+        return len(unique)
+
+    @staticmethod
     async def refresh(session: AsyncSession, *, force: bool = False) -> int:
         async with httpx.AsyncClient(
             headers={"User-Agent": _USER_AGENT, "Accept": "application/json,text/csv,*/*"},
@@ -125,7 +194,7 @@ class MedicineCatalogService:
             metadata = await session.get(CatalogMetadata, CATALOG_KEY)
             count = await session.scalar(select(func.count()).select_from(CatalogMedicine)) or 0
             if not force and metadata and count and metadata.source_last_modified == resource.last_modified:
-                return count
+                return await MedicineCatalogService.cleanup_duplicates(session)
             response = await client.get(resource.url)
             response.raise_for_status()
 
@@ -152,7 +221,7 @@ class MedicineCatalogService:
         statement = select(CatalogMedicine)
         for token in tokens:
             statement = statement.where(CatalogMedicine.search_text.contains(token))
-        candidates = list((await session.scalars(statement.limit(100))).all())
+        candidates = deduplicate_catalog_items(list((await session.scalars(statement.limit(300))).all()))
 
         def rank(item: CatalogMedicine) -> tuple[int, int, str]:
             name = normalize_catalog_text(item.trade_name)

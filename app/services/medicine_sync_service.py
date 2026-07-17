@@ -35,6 +35,7 @@ class MedicineSyncPayload:
     deleted_at: datetime | None
     schedules: list[ScheduleSyncPayload]
     catalog: dict[str, object] | None = None
+    created_at: datetime | None = None
 
 
 class MedicineSyncService:
@@ -62,6 +63,7 @@ class MedicineSyncService:
                 client_medicine_id=payload.client_medicine_id,
                 name=payload.name,
                 dosage_text=payload.dosage_text,
+                created_at=_utc(payload.created_at or payload.updated_at),
             )
             session.add(medicine)
         medicine.name = payload.name.strip()

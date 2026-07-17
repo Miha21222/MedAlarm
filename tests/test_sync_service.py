@@ -97,6 +97,46 @@ async def test_older_medicine_aggregate_is_ignored(db_session):
 
 
 @pytest.mark.asyncio
+async def test_manual_and_catalogue_medicines_share_sync_and_dashboard_rules(db_session):
+    user = User(telegram_id=8105, timezone="UTC")
+    db_session.add(user)
+    await db_session.flush()
+    now = datetime.now(UTC)
+    manual_payload = MedicineSyncPayload(
+        client_medicine_id="manual-parity",
+        name="Manual medicine",
+        dosage_text="1 tablet",
+        comment="same user-entered instructions",
+        is_active=True,
+        created_at=now - timedelta(days=1),
+        updated_at=now,
+        deleted_at=None,
+        schedules=[ScheduleSyncPayload(time="16:00", days_of_week="*")],
+    )
+    _, manual = await MedicineSyncService.apply(db_session, user, manual_payload)
+    _, catalogue = await MedicineSyncService.apply(
+        db_session,
+        user,
+        replace(
+            manual_payload,
+            client_medicine_id="catalogue-parity",
+            name="Catalogue medicine",
+            catalog={"source": "moh_state_register", "source_id": "record-1", "trade_name": "Catalogue medicine"},
+        ),
+    )
+
+    doses = await IntakeService.today_doses(db_session, user.id, now.date(), "UTC")
+    doses_by_medicine = {dose.medicine.client_medicine_id: dose for dose in doses}
+
+    assert manual.catalog_snapshot is None
+    assert catalogue.catalog_snapshot is not None
+    assert set(doses_by_medicine) == {"manual-parity", "catalogue-parity"}
+    assert doses_by_medicine["manual-parity"].schedule.time == doses_by_medicine["catalogue-parity"].schedule.time
+    assert doses_by_medicine["manual-parity"].status == doses_by_medicine["catalogue-parity"].status == "pending"
+    assert doses_by_medicine["manual-parity"].actionable is doses_by_medicine["catalogue-parity"].actionable is False
+
+
+@pytest.mark.asyncio
 async def test_reminder_action_is_idempotent(db_session):
     user = User(telegram_id=8103, timezone="UTC")
     db_session.add(user)
@@ -126,7 +166,12 @@ async def test_today_doses_keeps_multiple_schedule_slots_independent(db_session)
     user = User(telegram_id=8104, timezone="UTC")
     db_session.add(user)
     await db_session.flush()
-    medicine = Medicine(user_id=user.id, name="D3", dosage_text="1")
+    medicine = Medicine(
+        user_id=user.id,
+        name="D3",
+        dosage_text="1",
+        created_at=datetime.now(UTC) - timedelta(days=1),
+    )
     medicine.schedules = [
         MedicineSchedule(time="08:00", days_of_week="*"),
         MedicineSchedule(time="20:00", days_of_week="*"),
