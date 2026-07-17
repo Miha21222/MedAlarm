@@ -62,6 +62,7 @@ class MedicinePayload(BaseModel):
     comment: str | None = None
     catalog: MedicineCatalogSnapshot | None = None
     is_active: bool = True
+    created_at: datetime | None = None
     updated_at: datetime
     deleted_at: datetime | None = None
     schedules: list[SchedulePayload] = []

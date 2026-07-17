@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database.models import IntakeLog, Medicine, MedicineSchedule, ReminderDispatchLog
-from app.utils.datetime_utils import is_due_today, period_start
+from app.utils.datetime_utils import is_due_today, is_schedule_available_on_creation_day, period_range
 
 
 @dataclass(slots=True)
@@ -46,6 +46,12 @@ class IntakeService:
             schedule
             for schedule in schedule_result.scalars()
             if is_due_today(schedule.days_of_week, local_date)
+            and is_schedule_available_on_creation_day(
+                schedule.medicine.created_at,
+                schedule.time,
+                local_date,
+                timezone_name,
+            )
         ]
 
         dispatch_result = await session.execute(
@@ -171,6 +177,7 @@ class IntakeService:
         period: str = "week",
         medicine_id: int | None = None,
         limit: int = 50,
+        timezone_name: str = "UTC",
     ) -> list[IntakeLog]:
         scheduled_ts_expr = cast(func.strftime("%s", IntakeLog.scheduled_at), Integer)
         dispatch_exists = exists(
@@ -187,8 +194,10 @@ class IntakeService:
             .order_by(IntakeLog.scheduled_at.desc())
             .limit(limit)
         )
-        now_utc = datetime.now(UTC)
-        query = query.where(IntakeLog.scheduled_at >= period_start(period, now_utc))
+        period_start, period_end = period_range(period, datetime.now(UTC), timezone_name)
+        query = query.where(IntakeLog.scheduled_at >= period_start)
+        if period_end is not None:
+            query = query.where(IntakeLog.scheduled_at < period_end)
         if medicine_id is not None:
             query = query.where(IntakeLog.medicine_id == medicine_id)
         result = await session.execute(query)

@@ -114,6 +114,23 @@ def is_due_today(serialized_days: str, target_date: date) -> bool:
     return target_date.weekday() in deserialize_days(serialized_days)
 
 
+def is_schedule_available_on_creation_day(
+    created_at: datetime | None,
+    schedule_time: str,
+    target_date: date,
+    timezone_name: str,
+) -> bool:
+    if created_at is None:
+        return True
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=UTC)
+    created_local = created_at.astimezone(ZoneInfo(timezone_name))
+    if created_local.date() != target_date:
+        return True
+    hour, minute = parse_time_string(schedule_time)
+    return (hour, minute) >= (created_local.hour, created_local.minute)
+
+
 def utc_now() -> datetime:
     return datetime.now(UTC)
 
@@ -122,9 +139,24 @@ def now_in_timezone(timezone_name: str) -> datetime:
     return utc_now().astimezone(ZoneInfo(timezone_name))
 
 
-def period_start(period: str, now_utc: datetime) -> datetime:
+def period_range(period: str, now_utc: datetime, timezone_name: str = "UTC") -> tuple[datetime, datetime | None]:
+    local_now = now_utc.astimezone(ZoneInfo(timezone_name))
+    start_of_today = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
     if period == "today":
-        return now_utc - timedelta(days=1)
-    if period == "month":
-        return now_utc - timedelta(days=30)
-    return now_utc - timedelta(days=7)
+        start_local = start_of_today
+        end_local = start_local + timedelta(days=1)
+    elif period == "month":
+        start_local = start_of_today.replace(day=1)
+        end_local = (
+            start_local.replace(year=start_local.year + 1, month=1)
+            if start_local.month == 12
+            else start_local.replace(month=start_local.month + 1)
+        )
+    else:
+        start_local = start_of_today - timedelta(days=start_of_today.weekday())
+        end_local = start_local + timedelta(days=7)
+    return start_local.astimezone(UTC), end_local.astimezone(UTC)
+
+
+def period_start(period: str, now_utc: datetime, timezone_name: str = "UTC") -> datetime:
+    return period_range(period, now_utc, timezone_name)[0]

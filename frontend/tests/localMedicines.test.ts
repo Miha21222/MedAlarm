@@ -27,6 +27,8 @@ const medicine = createMedicine({
 });
 writeMedicineStore([medicine], storage);
 assert(readMedicineStore(storage)[0].name === "Vitamin D", "medicine should round-trip");
+assert(medicine.created_at === medicine.updated_at, "new medicine should retain its creation timestamp");
+assert(medicine.catalog === null, "manual medicines should normalize an absent catalogue reference to null");
 
 const catalogMedicine = createMedicine({
   name: "АСПІРИН КАРДІО®",
@@ -53,6 +55,9 @@ const catalogMedicine = createMedicine({
   },
 });
 assert(catalogMedicine.catalog?.registration_number === "UA/7802/01/01", "catalog metadata should be retained");
+assert(catalogMedicine.is_active === medicine.is_active, "catalogue and manual medicines should share activation rules");
+assert(catalogMedicine.schedules[0].time === medicine.schedules[0].time, "catalogue and manual medicines should retain schedules identically");
+assert(Boolean(catalogMedicine.created_at) === Boolean(medicine.created_at), "both entry methods should retain creation timestamps");
 
 const deleted = deleteMedicine(medicine);
 assert(deleted.deleted_at !== null && deleted.is_active === false, "delete should create tombstone");

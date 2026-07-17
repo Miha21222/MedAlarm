@@ -8,6 +8,7 @@ import { MicButton } from "../components/MicButton";
 import { useAppSettings } from "../contexts/AppSettingsContext";
 import { useToast } from "../contexts/ToastContext";
 import { updateMedicineInCache } from "../features/medicines/cache";
+import { catalogResultSummaries } from "../features/medicines/catalogPresentation";
 import {
   clearMedicineDraft,
   readMedicineDraft,
@@ -47,6 +48,8 @@ export function MedicineFormPage() {
   const [catalogResults, setCatalogResults] = useState<MedicineCatalogReference[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState(false);
+  const [catalogHintOpen, setCatalogHintOpen] = useState(false);
+  const catalogSummaries = useMemo(() => catalogResultSummaries(catalogResults), [catalogResults]);
 
   const [name, setName] = useState(savedDraft?.name ?? existing?.name ?? "");
   const [amount, setAmount] = useState(savedDraft?.amount ?? parsedDosage.amount);
@@ -212,25 +215,41 @@ export function MedicineFormPage() {
 
       {entryMode === "catalog" && !catalog ? (
         <section className="catalog-picker">
-          <div className="catalog-scope-note">
-            <Info size={19} aria-hidden="true" />
-            <div>
-              <strong>{t("catalogUkraineTitle")}</strong>
-              <p>{t("catalogUkraineHint")}</p>
+          <div className="catalog-search-field">
+            <div className="catalog-search-heading">
+              <span className="catalog-info">
+                <button
+                  type="button"
+                  aria-label={t("catalogUkraineTitle")}
+                  aria-describedby="catalog-scope-tooltip"
+                  aria-expanded={catalogHintOpen}
+                  onClick={() => setCatalogHintOpen((open) => !open)}
+                  onBlur={() => setCatalogHintOpen(false)}
+                >
+                  <Info size={16} aria-hidden="true" />
+                </button>
+                <span
+                  id="catalog-scope-tooltip"
+                  className={`catalog-info-tooltip${catalogHintOpen ? " open" : ""}`}
+                  role="tooltip"
+                >
+                  <strong>{t("catalogUkraineTitle")}</strong>
+                  <span>{t("catalogUkraineHint")}</span>
+                </span>
+              </span>
+              <label htmlFor="catalog-medicine-search">{t("catalogSearch")}</label>
             </div>
-          </div>
-          <label>
-            {t("catalogSearch")}
             <span className="catalog-search-input">
               <Search size={19} />
               <input
+                id="catalog-medicine-search"
                 autoFocus
                 value={catalogQuery}
                 placeholder={t("catalogSearchHint")}
                 onChange={(event) => setCatalogQuery(event.target.value)}
               />
             </span>
-          </label>
+          </div>
           {catalogLoading ? <p className="catalog-message">{t("catalogLoading")}</p> : null}
           {catalogError ? <p className="catalog-message error">{t("catalogUnavailable")}</p> : null}
           {!catalogLoading && !catalogError && catalogQuery.trim().length > 0 && catalogQuery.trim().length < 2 ? (
@@ -240,19 +259,19 @@ export function MedicineFormPage() {
             <p className="catalog-message">{t("catalogNoResults")}</p>
           ) : null}
           <div className="catalog-results">
-            {catalogResults.map((item) => (
-              <button key={item.source_id} type="button" onClick={() => selectCatalogMedicine(item)}>
-                <strong>{item.trade_name}</strong>
-                {item.inn ? <span>{item.inn}</span> : null}
-                {item.form ? <small>{item.form}</small> : null}
-                <em>{[item.manufacturer, item.registration_number].filter(Boolean).join(" · ")}</em>
-              </button>
-            ))}
+            {catalogResults.map((item) => {
+              const summary = catalogSummaries.get(item.source_id) ?? "";
+              return (
+                <button key={item.source_id} type="button" onClick={() => selectCatalogMedicine(item)}>
+                  <strong>{item.trade_name}</strong>
+                  {item.inn ? <span>{item.inn}</span> : null}
+                  {summary ? <small>{summary}</small> : null}
+                </button>
+              );
+            })}
           </div>
         </section>
       ) : null}
-
-      {catalog ? <MedicineCatalogDetails catalog={catalog} condensed /> : null}
 
       {showForm ? (
         <form className="medicine-form" onSubmit={(event) => void submit(event)}>
@@ -308,6 +327,8 @@ export function MedicineFormPage() {
           <button className="danger-btn full" type="button" onClick={clearForm}><Eraser size={18} />{t("clearForm")}</button>
         </form>
       ) : null}
+
+      {catalog ? <MedicineCatalogDetails catalog={catalog} condensed /> : null}
     </section>
   );
 }

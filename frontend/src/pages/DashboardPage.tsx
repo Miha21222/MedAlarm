@@ -10,19 +10,28 @@ import { useToast } from "../contexts/ToastContext";
 import { useDemoModeEnabled } from "../features/demo/demoMode";
 import { useMedicinesAllQuery } from "../features/medicines/cache";
 import { sortMedicines } from "../features/medicines/localMedicines";
-import type { DoseStatus, TodayItem } from "../types";
+import type { DoseStatus, Medicine, TodayItem } from "../types";
 import { calculateDailyCompletion } from "../utils/dailyCompletion";
 import { hapticNotification } from "../utils/haptics";
+
+const EMPTY_MEDICINES: Medicine[] = [];
 
 export function DashboardPage() {
   const { t, settings } = useAppSettings();
   const { showToast } = useToast();
-  const { data: medicines = [] } = useMedicinesAllQuery();
+  const { data } = useMedicinesAllQuery();
+  const medicines = data ?? EMPTY_MEDICINES;
   const [today, setToday] = useState<TodayItem[]>([]);
   const [demoEnabled] = useDemoModeEnabled();
 
   useEffect(() => {
-    void fetchToday(medicines, settings.timezone).then(setToday);
+    let active = true;
+    void fetchToday(medicines, settings.timezone).then((items) => {
+      if (active) setToday(items);
+    });
+    return () => {
+      active = false;
+    };
   }, [medicines, settings.timezone, demoEnabled]);
 
   const sorted = sortMedicines(today);

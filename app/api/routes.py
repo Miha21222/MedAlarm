@@ -46,6 +46,7 @@ def _serialize_medicine(medicine: Medicine) -> dict[str, object]:
         "comment": medicine.comment,
         "catalog": medicine.catalog_snapshot,
         "is_active": medicine.is_active,
+        "created_at": medicine.created_at,
         "updated_at": medicine.updated_at,
         "deleted_at": medicine.deleted_at,
         "schedules": [
@@ -68,6 +69,7 @@ def _sync_payload(payload: MedicinePayload) -> MedicineSyncPayload:
         comment=payload.comment,
         catalog=payload.catalog.model_dump() if payload.catalog else None,
         is_active=payload.is_active,
+        created_at=payload.created_at,
         updated_at=payload.updated_at,
         deleted_at=payload.deleted_at,
         schedules=[ScheduleSyncPayload(**slot.model_dump()) for slot in payload.schedules],
@@ -283,7 +285,7 @@ async def history(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, object]:
-    logs = await IntakeService.history(session, user.id, period=period)
+    logs = await IntakeService.history(session, user.id, period=period, timezone_name=user.timezone)
     dispatch_ids = [log.reminder_event_id for log in logs if log.reminder_event_id is not None]
     event_ids: dict[int, str] = {}
     if dispatch_ids:
