@@ -53,8 +53,8 @@ export function readLocalIntakeHistory(
 ): HistoryItem[] {
   const { start, end } = getZonedCalendarPeriodRange(now, timezone, period);
   const inPeriod = (item: HistoryItem) => {
-    const scheduledAt = Date.parse(item.scheduled_at);
-    return scheduledAt >= start && scheduledAt < end;
+    const respondedAt = Date.parse(item.responded_at || item.scheduled_at);
+    return respondedAt >= start && respondedAt < end;
   };
 
   // Demo mode overlays generated fixture history (buildPreviewHistory, never
@@ -63,10 +63,14 @@ export function readLocalIntakeHistory(
   // the real intake log's point of view.
   const live = readRawHistory(storage).filter(inPeriod);
   if (!isDemoModeEnabled()) {
-    return live.sort((left, right) => Date.parse(right.scheduled_at) - Date.parse(left.scheduled_at));
+    return live.sort(
+      (left, right) => Date.parse(right.responded_at || right.scheduled_at) - Date.parse(left.responded_at || left.scheduled_at),
+    );
   }
   const synthetic = buildPreviewHistory(now, timezone).filter(inPeriod);
-  return [...live, ...synthetic].sort((left, right) => Date.parse(right.scheduled_at) - Date.parse(left.scheduled_at));
+  return [...live, ...synthetic].sort(
+    (left, right) => Date.parse(right.responded_at || right.scheduled_at) - Date.parse(left.responded_at || left.scheduled_at),
+  );
 }
 
 export function resolveLocalDoseAction(

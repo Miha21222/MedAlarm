@@ -6,6 +6,11 @@ import sys
 import time
 
 
+INIT_COMMAND = (
+    sys.executable,
+    "-c",
+    "import asyncio; from app.database.session import init_db; asyncio.run(init_db())",
+)
 COMMANDS = (
     (sys.executable, "-m", "uvicorn", "app.api.main:app", "--host", "0.0.0.0", "--port", "8000"),
     (sys.executable, "main.py"),
@@ -13,7 +18,22 @@ COMMANDS = (
 
 
 def run() -> int:
-    processes = [subprocess.Popen(command) for command in COMMANDS]
+    # Both children initialize the same SQLite database. Complete schema setup
+    # once before starting them so first-deploy additive migrations cannot race.
+    initialized = subprocess.run(INIT_COMMAND, check=False)
+    if initialized.returncode != 0:
+        return initialized.returncode
+
+    processes: list[subprocess.Popen[bytes]] = []
+    try:
+        for command in COMMANDS:
+            processes.append(subprocess.Popen(command))
+    except Exception:
+        for process in processes:
+            process.terminate()
+            process.wait(timeout=10)
+        raise
+
     stopping = False
 
     def stop(*_: object) -> None:

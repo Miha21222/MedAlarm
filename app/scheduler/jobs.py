@@ -174,14 +174,16 @@ class ReminderScheduler:
                 return
             medicine = dispatch.medicine
             schedule = dispatch.schedule
-            user = medicine.user
         text = (
             f"Пора принять лекарство: {medicine.name}\n"
             f"Дозировка: {medicine.dosage_text}\n"
             f"Время по расписанию: {schedule.time}"
         )
-        sent_message = await self._bot.send_message(
-            chat_id=user.telegram_id,
+        if dispatch.chat_id is None or dispatch.message_id is None:
+            return
+        await self._bot.edit_message_text(
+            chat_id=dispatch.chat_id,
+            message_id=dispatch.message_id,
             text=text,
             reply_markup=reminder_keyboard(
                 medicine_id=medicine.id,
@@ -196,8 +198,6 @@ class ReminderScheduler:
             if current is not None and current.resolved_at is None:
                 current.status = "sent"
                 current.snoozed_until = None
-                current.chat_id = user.telegram_id
-                current.message_id = getattr(sent_message, "message_id", None)
 
     async def _send_reminder(self, medicine_id: int, schedule_id: int) -> None:
         if self._bot is None:
@@ -224,17 +224,42 @@ class ReminderScheduler:
             f"Дозировка: {medicine.dosage_text}\n"
             f"Время по расписанию: {schedule.time}"
         )
-        sent_message = await self._bot.send_message(
-            chat_id=user.telegram_id,
-            text=text,
-            reply_markup=reminder_keyboard(medicine_id=medicine.id, schedule_id=schedule.id, scheduled_ts=scheduled_ts),
-        )
+        # Commit the event before exposing its callback buttons. Otherwise a
+        # fast tap can arrive while no matching dispatch exists yet.
         async with session_scope() as session:
-            await IntakeService.log_dispatch(
+            dispatch = await IntakeService.log_dispatch(
                 session=session,
                 medicine_id=medicine.id,
                 schedule_id=schedule.id,
                 scheduled_ts=scheduled_ts,
                 chat_id=user.telegram_id,
-                message_id=getattr(sent_message, "message_id", None),
             )
+            event_id = dispatch.event_id
+
+        try:
+            sent_message = await self._bot.send_message(
+                chat_id=user.telegram_id,
+                text=text,
+                reply_markup=reminder_keyboard(
+                    medicine_id=medicine.id,
+                    schedule_id=schedule.id,
+                    scheduled_ts=scheduled_ts,
+                ),
+            )
+        except Exception:
+            # A normal Telegram failure did not deliver callback buttons, so do
+            # not leave a phantom actionable event on the dashboard.
+            async with session_scope() as session:
+                failed = await session.scalar(
+                    select(ReminderDispatchLog).where(ReminderDispatchLog.event_id == event_id)
+                )
+                if failed is not None:
+                    await session.delete(failed)
+            raise
+
+        async with session_scope() as session:
+            delivered = await session.scalar(
+                select(ReminderDispatchLog).where(ReminderDispatchLog.event_id == event_id)
+            )
+            if delivered is not None:
+                delivered.message_id = getattr(sent_message, "message_id", None)

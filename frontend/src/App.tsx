@@ -67,8 +67,8 @@ export default function App() {
   const initialSettings = { ...readSettings(), ...auth.settings };
 
   return (
-    <AppSettingsProvider initialSettings={initialSettings}>
-      <ToastProvider>
+    <ToastProvider>
+      <AppSettingsProvider initialSettings={initialSettings}>
         <Layout>
           <Routes>
             <Route path="/" element={<DashboardPage />} />
@@ -82,7 +82,7 @@ export default function App() {
             <Route path="/settings/bug-report" element={<BugReportPage />} />
           </Routes>
         </Layout>
-      </ToastProvider>
-    </AppSettingsProvider>
+      </AppSettingsProvider>
+    </ToastProvider>
   );
 }

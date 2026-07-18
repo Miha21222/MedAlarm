@@ -2,12 +2,16 @@
 __pycache__/
 .pytest_cache/
 *.pyc
+*.log
 .env
 data/
 frontend/node_modules/
 frontend/dist/
 frontend/.npm-cache/
 frontend/.test-dist/
+frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/
 .playwright-cli/
 .tmp-pytest*/
 .codegraph/

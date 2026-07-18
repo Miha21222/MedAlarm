@@ -74,8 +74,27 @@ class MedicineSyncService:
         medicine.updated_at = incoming_updated_at
         medicine.deleted_at = _utc(payload.deleted_at) if payload.deleted_at else None
 
-        medicine.schedules.clear()
-        for slot in sorted(payload.schedules, key=lambda item: (item.time, item.days_of_week)):
+        # Reconcile slots in place instead of clear-and-reinsert. SQLAlchemy may
+        # issue INSERTs before orphan DELETEs during one flush, which collides
+        # with uq_schedule_slot when an unchanged slot is synced again. Keeping
+        # matching rows also preserves their IDs and reminder-event links.
+        incoming_by_key = {
+            (slot.time, slot.days_of_week): slot
+            for slot in payload.schedules
+        }
+        for schedule in list(medicine.schedules):
+            slot = incoming_by_key.pop((schedule.time, schedule.days_of_week), None)
+            if slot is None:
+                medicine.schedules.remove(schedule)
+                continue
+            schedule.snooze_minutes = slot.snooze_minutes or user.default_snooze_minutes
+            schedule.remind_until_confirmed = (
+                user.remind_until_confirmed
+                if slot.remind_until_confirmed is None
+                else slot.remind_until_confirmed
+            )
+        for key in sorted(incoming_by_key):
+            slot = incoming_by_key[key]
             medicine.schedules.append(
                 MedicineSchedule(
                     time=slot.time,

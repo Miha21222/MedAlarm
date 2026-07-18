@@ -8,6 +8,7 @@ import {
   isMedicineVisible,
   mergeRemoteMedicines,
   readMedicineStore,
+  settleMedicineSync,
   sortMedicines,
   updateMedicine as applyMedicineUpdate,
   writeMedicineStore,
@@ -32,11 +33,17 @@ async function persistWithSync(medicine: Medicine): Promise<Medicine> {
   if (!hasAuthToken()) return medicine;
   try {
     const synced = await syncMedicine(medicine.client_medicine_id, medicine);
-    const merged: Medicine = { ...synced, syncState: "synced" };
-    writeMedicineStore(replaceMedicine(readMedicineStore(), merged));
-    return merged;
+    const current = readMedicineStore().find(
+      (item) => item.client_medicine_id === medicine.client_medicine_id,
+    );
+    const settled = settleMedicineSync(current, medicine, synced);
+    writeMedicineStore(replaceMedicine(readMedicineStore(), settled));
+    return settled;
   } catch {
-    const failed: Medicine = { ...medicine, syncState: "error" };
+    const current = readMedicineStore().find(
+      (item) => item.client_medicine_id === medicine.client_medicine_id,
+    );
+    const failed = settleMedicineSync(current, medicine);
     writeMedicineStore(replaceMedicine(readMedicineStore(), failed));
     return failed;
   }
@@ -84,11 +91,15 @@ export async function bootstrapMedicineSync(): Promise<Medicine[]> {
 
   const pending = merged.filter((medicine) => medicine.syncState === "pending" || medicine.syncState === "error");
   if (pending.length > 0) {
-    await syncMedicineBatch(pending);
-    const pendingIds = new Set(pending.map((medicine) => medicine.client_medicine_id));
-    const settled = readMedicineStore().map((medicine) =>
-      pendingIds.has(medicine.client_medicine_id) ? { ...medicine, syncState: "synced" as const } : medicine,
-    );
+    const remoteResults = await syncMedicineBatch(pending);
+    const requestedById = new Map(pending.map((medicine) => [medicine.client_medicine_id, medicine]));
+    const remoteById = new Map(remoteResults.map((medicine) => [medicine.client_medicine_id, medicine]));
+    const settled = readMedicineStore().map((current) => {
+      const requested = requestedById.get(current.client_medicine_id);
+      return requested
+        ? settleMedicineSync(current, requested, remoteById.get(current.client_medicine_id))
+        : current;
+    });
     writeMedicineStore(settled);
   }
 

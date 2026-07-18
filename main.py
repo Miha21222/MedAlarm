@@ -21,13 +21,12 @@ async def run() -> None:
     )
     await init_db()
     bot, dp = create_bot_and_dispatcher(settings)
-    await setup_bot_commands(bot)
-
     reminder_scheduler = ReminderScheduler()
     set_scheduler(reminder_scheduler)
-    await reminder_scheduler.start(bot)
 
     try:
+        await setup_bot_commands(bot)
+        await reminder_scheduler.start(bot)
         await dp.start_polling(bot)
     finally:
         await reminder_scheduler.stop()

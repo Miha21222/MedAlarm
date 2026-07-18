@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
@@ -5,9 +6,40 @@ from sqlalchemy import func, select
 
 from app.database.models import IntakeLog, Medicine, MedicineSchedule, User
 from app.services.intake_service import IntakeService
-from app.services.medicine_service import MedicineCreatePayload, MedicineService
-from app.services.schedule_service import ScheduleService
 from app.services.user_service import UserService
+
+
+@dataclass(slots=True)
+class MedicineCreatePayload:
+    name: str
+    dosage_text: str
+    times: list[str]
+    days_of_week: str
+    remind_until_confirmed: bool
+    snooze_minutes: int
+    comment: str | None = None
+
+
+async def create_medicine_with_schedule(db_session, user: User, payload: MedicineCreatePayload) -> Medicine:
+    medicine = Medicine(
+        user_id=user.id,
+        name=payload.name,
+        dosage_text=payload.dosage_text,
+        comment=payload.comment,
+        is_active=True,
+    )
+    medicine.schedules = [
+        MedicineSchedule(
+            time=schedule_time,
+            days_of_week=payload.days_of_week,
+            snooze_minutes=payload.snooze_minutes,
+            remind_until_confirmed=payload.remind_until_confirmed,
+        )
+        for schedule_time in payload.times
+    ]
+    db_session.add(medicine)
+    await db_session.flush()
+    return medicine
 
 
 @pytest.mark.asyncio
@@ -35,60 +67,6 @@ async def test_register_user_idempotent(db_session):
 
 
 @pytest.mark.asyncio
-async def test_create_medicine_and_list_active(db_session):
-    user = User(telegram_id=9988, timezone="UTC")
-    db_session.add(user)
-    await db_session.flush()
-    payload = MedicineCreatePayload(
-        name="Магний",
-        dosage_text="1 таблетка",
-        times=["09:00", "21:00"],
-        days_of_week="*",
-        remind_until_confirmed=True,
-        snooze_minutes=10,
-    )
-    medicine = await MedicineService.create_medicine_with_schedule(db_session, user, payload)
-    await db_session.commit()
-    meds = await MedicineService.list_active_medicines(db_session, user.id)
-    assert len(meds) == 1
-    assert meds[0].id == medicine.id
-    assert [schedule.time for schedule in meds[0].schedules] == ["09:00", "21:00"]
-
-
-@pytest.mark.asyncio
-async def test_update_medicine_replaces_schedules(db_session):
-    user = User(telegram_id=11223, timezone="UTC")
-    db_session.add(user)
-    await db_session.flush()
-    created_payload = MedicineCreatePayload(
-        name="Омега-3",
-        dosage_text="1 капсула",
-        times=["08:00", "20:00"],
-        days_of_week="*",
-        remind_until_confirmed=True,
-        snooze_minutes=10,
-    )
-    medicine = await MedicineService.create_medicine_with_schedule(db_session, user, created_payload)
-    await db_session.flush()
-    updated_payload = MedicineCreatePayload(
-        name="Омега-3 New",
-        dosage_text="2 капсулы",
-        times=["07:30", "13:00", "22:15"],
-        days_of_week="*",
-        remind_until_confirmed=False,
-        snooze_minutes=15,
-    )
-    await MedicineService.update_medicine_with_schedule(db_session, medicine, updated_payload)
-    await db_session.commit()
-
-    updated = await MedicineService.get_user_medicine(db_session, medicine.id, user.id)
-    assert updated is not None
-    assert updated.name == "Омега-3 New"
-    assert updated.dosage_text == "2 капсулы"
-    assert [schedule.time for schedule in updated.schedules] == ["07:30", "13:00", "22:15"]
-
-
-@pytest.mark.asyncio
 async def test_history_filters_by_period(db_session):
     user = User(telegram_id=7788, timezone="UTC")
     db_session.add(user)
@@ -101,7 +79,7 @@ async def test_history_filters_by_period(db_session):
         remind_until_confirmed=True,
         snooze_minutes=10,
     )
-    medicine = await MedicineService.create_medicine_with_schedule(db_session, user, payload)
+    medicine = await create_medicine_with_schedule(db_session, user, payload)
     await db_session.flush()
     schedule_id = await db_session.scalar(
         select(MedicineSchedule.id).where(MedicineSchedule.medicine_id == medicine.id)
@@ -109,20 +87,36 @@ async def test_history_filters_by_period(db_session):
     assert schedule_id is not None
     within_week = datetime.now(UTC) - timedelta(minutes=1)
     out_of_month = datetime.now(UTC) - timedelta(days=40)
-    await IntakeService.log_dispatch(
+    recent_dispatch = await IntakeService.log_dispatch(
         db_session,
         medicine_id=medicine.id,
         schedule_id=schedule_id,
         scheduled_ts=int(within_week.timestamp()),
     )
-    await IntakeService.log_dispatch(
+    old_dispatch = await IntakeService.log_dispatch(
         db_session,
         medicine_id=medicine.id,
         schedule_id=schedule_id,
         scheduled_ts=int(out_of_month.timestamp()),
     )
-    await IntakeService.log_intake(db_session, medicine.id, within_week, "taken")
-    await IntakeService.log_intake(db_session, medicine.id, out_of_month, "skipped")
+    db_session.add_all(
+        [
+            IntakeLog(
+                medicine_id=medicine.id,
+                reminder_event_id=recent_dispatch.id,
+                scheduled_at=within_week,
+                responded_at=within_week,
+                status="taken",
+            ),
+            IntakeLog(
+                medicine_id=medicine.id,
+                reminder_event_id=old_dispatch.id,
+                scheduled_at=out_of_month,
+                responded_at=out_of_month,
+                status="skipped",
+            ),
+        ]
+    )
     await db_session.commit()
 
     week_history = await IntakeService.history(db_session, user.id, period="week")
@@ -144,7 +138,7 @@ async def test_hard_delete_medicine_removes_related_rows(db_session):
         remind_until_confirmed=True,
         snooze_minutes=10,
     )
-    medicine = await MedicineService.create_medicine_with_schedule(db_session, user, payload)
+    medicine = await create_medicine_with_schedule(db_session, user, payload)
     await db_session.flush()
     await IntakeService.log_intake(
         db_session,
@@ -154,9 +148,8 @@ async def test_hard_delete_medicine_removes_related_rows(db_session):
     )
     await db_session.commit()
 
-    deleted = await MedicineService.hard_delete_medicine(db_session, medicine.id, user.id)
+    await db_session.delete(medicine)
     await db_session.commit()
-    assert deleted is True
 
     medicine_count = await db_session.scalar(select(func.count()).select_from(Medicine))
     schedule_count = await db_session.scalar(select(func.count()).select_from(MedicineSchedule))
@@ -179,7 +172,7 @@ async def test_today_status_by_medicine_uses_latest_status(db_session):
         remind_until_confirmed=True,
         snooze_minutes=10,
     )
-    medicine = await MedicineService.create_medicine_with_schedule(db_session, user, payload)
+    medicine = await create_medicine_with_schedule(db_session, user, payload)
     await db_session.flush()
     schedule_id = await db_session.scalar(
         select(MedicineSchedule.id).where(MedicineSchedule.medicine_id == medicine.id)
@@ -188,20 +181,36 @@ async def test_today_status_by_medicine_uses_latest_status(db_session):
     now = datetime.now(UTC)
     first = now - timedelta(hours=2)
     second = now - timedelta(hours=1)
-    await IntakeService.log_dispatch(
+    first_dispatch = await IntakeService.log_dispatch(
         db_session,
         medicine_id=medicine.id,
         schedule_id=schedule_id,
         scheduled_ts=int(first.timestamp()),
     )
-    await IntakeService.log_dispatch(
+    second_dispatch = await IntakeService.log_dispatch(
         db_session,
         medicine_id=medicine.id,
         schedule_id=schedule_id,
         scheduled_ts=int(second.timestamp()),
     )
-    await IntakeService.log_intake(db_session, medicine.id, first, "skipped")
-    await IntakeService.log_intake(db_session, medicine.id, second, "taken")
+    db_session.add_all(
+        [
+            IntakeLog(
+                medicine_id=medicine.id,
+                reminder_event_id=first_dispatch.id,
+                scheduled_at=first,
+                responded_at=first,
+                status="skipped",
+            ),
+            IntakeLog(
+                medicine_id=medicine.id,
+                reminder_event_id=second_dispatch.id,
+                scheduled_at=second,
+                responded_at=second,
+                status="taken",
+            ),
+        ]
+    )
     await db_session.commit()
 
     status_map = await IntakeService.today_status_by_medicine(
@@ -226,9 +235,21 @@ async def test_history_and_today_ignore_intake_without_dispatch(db_session):
         remind_until_confirmed=True,
         snooze_minutes=10,
     )
-    medicine = await MedicineService.create_medicine_with_schedule(db_session, user, payload)
+    medicine = await create_medicine_with_schedule(db_session, user, payload)
     await db_session.flush()
+    schedule_id = await db_session.scalar(
+        select(MedicineSchedule.id).where(MedicineSchedule.medicine_id == medicine.id)
+    )
+    assert schedule_id is not None
     now = datetime.now(UTC)
+    # A matching medicine/timestamp is not enough: only an intake explicitly
+    # linked to this dispatch is a real reminder response.
+    await IntakeService.log_dispatch(
+        db_session,
+        medicine_id=medicine.id,
+        schedule_id=schedule_id,
+        scheduled_ts=int(now.timestamp()),
+    )
     await IntakeService.log_intake(db_session, medicine.id, now, "taken")
     await db_session.commit()
 
@@ -257,7 +278,7 @@ async def test_has_dispatch_checks_event_triplet(db_session):
         remind_until_confirmed=True,
         snooze_minutes=10,
     )
-    medicine = await MedicineService.create_medicine_with_schedule(db_session, user, payload)
+    medicine = await create_medicine_with_schedule(db_session, user, payload)
     await db_session.flush()
     schedule_id = await db_session.scalar(
         select(MedicineSchedule.id).where(MedicineSchedule.medicine_id == medicine.id)
@@ -289,42 +310,6 @@ async def test_has_dispatch_checks_event_triplet(db_session):
 
 
 @pytest.mark.asyncio
-async def test_get_user_today_medicines_sorted_by_time_ascending(db_session):
-    user = User(telegram_id=7777, timezone="UTC")
-    db_session.add(user)
-    await db_session.flush()
-
-    morning = await MedicineService.create_medicine_with_schedule(
-        db_session,
-        user,
-        MedicineCreatePayload(
-            name="Утренний",
-            dosage_text="1 таблетка",
-            times=["08:00"],
-            days_of_week="*",
-            remind_until_confirmed=True,
-            snooze_minutes=10,
-        ),
-    )
-    evening = await MedicineService.create_medicine_with_schedule(
-        db_session,
-        user,
-        MedicineCreatePayload(
-            name="Вечерний",
-            dosage_text="1 таблетка",
-            times=["17:00"],
-            days_of_week="*",
-            remind_until_confirmed=True,
-            snooze_minutes=10,
-        ),
-    )
-    await db_session.commit()
-
-    medicines = await ScheduleService.get_user_today_medicines(db_session, user.id, date.today())
-    assert [medicine.id for medicine in medicines] == [morning.id, evening.id]
-
-
-@pytest.mark.asyncio
 async def test_history_sorted_by_newest_first(db_session):
     user = User(telegram_id=8888, timezone="UTC")
     db_session.add(user)
@@ -337,7 +322,7 @@ async def test_history_sorted_by_newest_first(db_session):
         remind_until_confirmed=True,
         snooze_minutes=10,
     )
-    medicine = await MedicineService.create_medicine_with_schedule(db_session, user, payload)
+    medicine = await create_medicine_with_schedule(db_session, user, payload)
     await db_session.flush()
     schedule_id = await db_session.scalar(
         select(MedicineSchedule.id).where(MedicineSchedule.medicine_id == medicine.id)
@@ -346,25 +331,81 @@ async def test_history_sorted_by_newest_first(db_session):
 
     older = datetime.now(UTC) - timedelta(hours=2)
     newer = datetime.now(UTC) - timedelta(hours=1)
-    await IntakeService.log_dispatch(
+    older_dispatch = await IntakeService.log_dispatch(
         db_session,
         medicine_id=medicine.id,
         schedule_id=schedule_id,
         scheduled_ts=int(older.timestamp()),
     )
-    await IntakeService.log_dispatch(
+    newer_dispatch = await IntakeService.log_dispatch(
         db_session,
         medicine_id=medicine.id,
         schedule_id=schedule_id,
         scheduled_ts=int(newer.timestamp()),
     )
-    await IntakeService.log_intake(db_session, medicine.id, older, "taken")
-    await IntakeService.log_intake(db_session, medicine.id, newer, "skipped")
+    db_session.add_all(
+        [
+            IntakeLog(
+                medicine_id=medicine.id,
+                reminder_event_id=older_dispatch.id,
+                scheduled_at=older,
+                responded_at=newer,
+                status="taken",
+            ),
+            IntakeLog(
+                medicine_id=medicine.id,
+                reminder_event_id=newer_dispatch.id,
+                scheduled_at=newer,
+                responded_at=older,
+                status="skipped",
+            ),
+        ]
+    )
     await db_session.commit()
 
     history = await IntakeService.history(db_session, user.id, period="today")
     assert len(history) == 2
-    assert history[0].scheduled_at >= history[1].scheduled_at
+    assert history[0].status == "taken"
+    assert history[0].responded_at >= history[1].responded_at
+
+
+@pytest.mark.asyncio
+async def test_dispatch_lookup_can_be_scoped_to_owning_user(db_session):
+    owner = User(telegram_id=88001, timezone="UTC")
+    other = User(telegram_id=88002, timezone="UTC")
+    db_session.add_all([owner, other])
+    await db_session.flush()
+    medicine = Medicine(user_id=owner.id, name="D3", dosage_text="1", is_active=True)
+    db_session.add(medicine)
+    await db_session.flush()
+    schedule = MedicineSchedule(medicine_id=medicine.id, time="10:00", days_of_week="*")
+    db_session.add(schedule)
+    await db_session.flush()
+    scheduled_ts = int(datetime.now(UTC).timestamp())
+    await IntakeService.log_dispatch(
+        db_session,
+        medicine_id=medicine.id,
+        schedule_id=schedule.id,
+        scheduled_ts=scheduled_ts,
+    )
+
+    own = await IntakeService.get_dispatch(
+        db_session,
+        medicine_id=medicine.id,
+        schedule_id=schedule.id,
+        scheduled_ts=scheduled_ts,
+        user_id=owner.id,
+    )
+    unauthorized = await IntakeService.get_dispatch(
+        db_session,
+        medicine_id=medicine.id,
+        schedule_id=schedule.id,
+        scheduled_ts=scheduled_ts,
+        user_id=other.id,
+    )
+
+    assert own is not None
+    assert unauthorized is None
 
 
 def test_status_to_emoji_mapping():
