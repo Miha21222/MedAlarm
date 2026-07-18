@@ -1,6 +1,7 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from app.api.dependencies import get_session
 from app.api.main import app
 
 
@@ -31,9 +32,16 @@ async def test_pages_origin_cors_preflight():
 
 
 @pytest.mark.asyncio
-async def test_catalog_status_is_public():
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.get("/api/v1/catalog/status")
+async def test_catalog_status_is_public(db_session):
+    async def override_session():
+        yield db_session
+
+    app.dependency_overrides[get_session] = override_session
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get("/api/v1/catalog/status")
+    finally:
+        app.dependency_overrides.clear()
     assert response.status_code == 200
     assert response.json()["source_url"].startswith("https://data.gov.ua/")
     assert response.json()["license"] == "CC BY"
