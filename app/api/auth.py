@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import binascii
 import hashlib
 import hmac
 import json
@@ -34,10 +35,16 @@ def decode_access_token(token: str, secret: str, now: int | None = None) -> int:
         if not hmac.compare_digest(signature, expected):
             raise ValueError("invalid token signature")
         payload = json.loads(_decode(body))
-        if int(payload["exp"]) < (int(time.time()) if now is None else now):
+        if not isinstance(payload, dict):
+            raise ValueError("invalid access token")
+        expires_at = int(payload["exp"])
+        telegram_id = int(payload["sub"])
+        if expires_at <= (int(time.time()) if now is None else now):
             raise ValueError("token expired")
-        return int(payload["sub"])
-    except (KeyError, TypeError, json.JSONDecodeError, ValueError) as exc:
+        if telegram_id <= 0:
+            raise ValueError("invalid access token")
+        return telegram_id
+    except (binascii.Error, KeyError, TypeError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
         if isinstance(exc, ValueError) and str(exc) in {
             "invalid token signature",
             "token expired",
@@ -53,7 +60,10 @@ def validate_telegram_init_data(
     max_age_seconds: int = 86400,
     now: int | None = None,
 ) -> dict[str, object]:
-    values = dict(parse_qsl(init_data, keep_blank_values=True))
+    pairs = parse_qsl(init_data, keep_blank_values=True)
+    if len({key for key, _ in pairs}) != len(pairs):
+        raise ValueError("duplicate Telegram parameter")
+    values = dict(pairs)
     received_hash = values.pop("hash", "")
     if not received_hash:
         raise ValueError("missing Telegram hash")
@@ -68,6 +78,8 @@ def validate_telegram_init_data(
     current = int(time.time()) if now is None else now
     if auth_date <= 0 or current - auth_date > max_age_seconds:
         raise ValueError("Telegram authorization expired")
+    if auth_date - current > 30:
+        raise ValueError("Telegram authorization date is in the future")
 
     try:
         user = json.loads(values["user"])

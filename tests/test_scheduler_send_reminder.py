@@ -11,12 +11,24 @@ from app.database.models import Base, Medicine, MedicineSchedule, ReminderDispat
 from app.scheduler.jobs import ReminderScheduler
 
 
+class FakeMessage:
+    def __init__(self, message_id: int) -> None:
+        self.message_id = message_id
+
+
 class FakeBot:
     def __init__(self) -> None:
         self.messages: list[dict] = []
+        self.edits: list[dict] = []
 
-    async def send_message(self, chat_id: int, text: str, reply_markup=None) -> None:
+    async def send_message(self, chat_id: int, text: str, reply_markup=None) -> FakeMessage:
         self.messages.append({"chat_id": chat_id, "text": text, "reply_markup": reply_markup})
+        return FakeMessage(len(self.messages))
+
+    async def edit_message_text(self, chat_id: int, message_id: int, text: str, reply_markup=None) -> None:
+        self.edits.append(
+            {"chat_id": chat_id, "message_id": message_id, "text": text, "reply_markup": reply_markup}
+        )
 
 
 @pytest.mark.asyncio
@@ -78,6 +90,8 @@ async def test_send_reminder_sends_message_without_lazy_loading_error(monkeypatc
     assert len(dispatch_logs) == 1
     assert dispatch_logs[0].schedule_id == schedule_id
     assert dispatch_logs[0].scheduled_ts == scheduled_ts
+    assert dispatch_logs[0].chat_id == 555001
+    assert dispatch_logs[0].message_id == 1
 
     assert bot.messages[0]["text"]
     assert "15:27" in bot.messages[0]["text"]
@@ -108,6 +122,8 @@ async def test_snooze_is_restored_and_cleared_after_delivery(monkeypatch):
             schedule_id=schedule.id,
             scheduled_ts=int(datetime.now(UTC).timestamp()),
             status="snoozed",
+            chat_id=user.telegram_id,
+            message_id=42,
             snoozed_until=datetime.now(UTC) + timedelta(minutes=5),
         )
         session.add(dispatch)
@@ -138,5 +154,9 @@ async def test_snooze_is_restored_and_cleared_after_delivery(monkeypatch):
     assert restored is not None
     assert restored.status == "sent"
     assert restored.snoozed_until is None
-    assert len(scheduler._bot.messages) == 1
+    assert scheduler._bot.messages == []
+    assert len(scheduler._bot.edits) == 1
+    assert scheduler._bot.edits[0]["chat_id"] == 555002
+    assert scheduler._bot.edits[0]["message_id"] == 42
+    assert scheduler._bot.edits[0]["reply_markup"] is not None
     await engine.dispose()

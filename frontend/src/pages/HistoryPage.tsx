@@ -4,6 +4,7 @@ import { fetchHistory } from "../api/history";
 import { EmptyState } from "../components/EmptyState";
 import { SectionHeader } from "../components/SectionHeader";
 import { useAppSettings } from "../contexts/AppSettingsContext";
+import { useToast } from "../contexts/ToastContext";
 import { useDemoModeEnabled } from "../features/demo/demoMode";
 import {
   filterHistory,
@@ -46,6 +47,7 @@ const STATUS_LABELS: Record<HistoryStatusFilter, TranslationKey> = {
 
 export function HistoryPage() {
   const { t, settings } = useAppSettings();
+  const { showToast } = useToast();
   const [items, setItems] = useState<HistoryItem[]>([]);
   const period = usePersistentEnumState<HistoryPeriod>("medalarm.history.period", "month", PERIODS);
   const groupBy = usePersistentEnumState<HistoryGroupBy>("medalarm.history.groupBy", "none", GROUP_OPTIONS);
@@ -54,13 +56,17 @@ export function HistoryPage() {
 
   useEffect(() => {
     let active = true;
-    void fetchHistory(period.value, settings.timezone).then((nextItems) => {
-      if (active) setItems(nextItems);
-    });
+    void fetchHistory(period.value, settings.timezone)
+      .then((nextItems) => {
+        if (active) setItems(nextItems);
+      })
+      .catch(() => {
+        if (active) showToast({ message: t("syncError"), tone: "error" });
+      });
     return () => {
       active = false;
     };
-  }, [period.value, demoEnabled, settings.timezone]);
+  }, [period.value, demoEnabled, settings.timezone, showToast, t]);
 
   const effectiveGroupBy = period.value === "today" ? "none" : groupBy.value;
   const filtered = useMemo(
@@ -141,7 +147,7 @@ export function HistoryPage() {
                     <span className={`history-dot ${item.status}`} />
                     <div>
                       <strong>{item.medicine}</strong>
-                      <time>{formatInTimezone(item.scheduled_at, settings.timezone, settings.language, true)}</time>
+                      <time>{formatInTimezone(item.responded_at, settings.timezone, settings.language, true)}</time>
                     </div>
                     <span className={`status-chip ${item.status}`}>{t(item.status)}</span>
                   </article>

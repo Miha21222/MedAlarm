@@ -34,35 +34,58 @@ async def reminder_action(callback: CallbackQuery) -> None:
         return
 
     async with session_scope() as session:
-        dispatch = await IntakeService.get_dispatch(
-            session=session,
-            medicine_id=medicine_id,
-            schedule_id=schedule_id,
-            scheduled_ts=scheduled_ts,
-        )
         user = await UserService.get_by_telegram_id(session, callback.from_user.id)
+        dispatch = None
+        if user is not None:
+            dispatch = await IntakeService.get_dispatch(
+                session=session,
+                medicine_id=medicine_id,
+                schedule_id=schedule_id,
+                scheduled_ts=scheduled_ts,
+                user_id=user.id,
+            )
     if dispatch is None or user is None:
         await callback.answer("Это напоминание уже недействительно.", show_alert=True)
         return
 
     if action == "snooze":
         scheduler = get_scheduler()
-        if scheduler:
+        if scheduler is None:
+            await callback.answer("Отложить сейчас не удалось. Попробуйте ещё раз.", show_alert=True)
+            return
+        minutes = dispatch.schedule.snooze_minutes if dispatch.schedule is not None else user.default_snooze_minutes
+        try:
             await scheduler.schedule_snooze(
                 event_id=dispatch.event_id,
                 user_id=user.id,
-                minutes=user.default_snooze_minutes,
+                minutes=minutes,
             )
-        await callback.answer(f"Напомню через {user.default_snooze_minutes} минут")
-        await callback.message.edit_text(
-            f"{callback.message.text}\n\nСтатус: отложено на {user.default_snooze_minutes} минут."
-        )
+        except LookupError:
+            await callback.answer("Это напоминание уже недействительно.", show_alert=True)
+            return
+        await callback.answer(f"Напомню через {minutes} минут")
+        try:
+            await callback.message.edit_text(
+                f"{callback.message.text}\n\nСтатус: отложено на {minutes} минут."
+            )
+        except Exception:
+            # Snooze is already persisted; Telegram UI updates are best-effort.
+            pass
         return
 
     status = "taken" if action == "taken" else "skipped"
-    async with session_scope() as session:
-        await ReminderActionService.resolve(session, user.id, dispatch.event_id, status)
+    try:
+        async with session_scope() as session:
+            await ReminderActionService.resolve(session, user.id, dispatch.event_id, status)
+    except LookupError:
+        await callback.answer("Это напоминание уже недействительно.", show_alert=True)
+        return
 
     label = "принято" if action == "taken" else "пропущено"
     await callback.answer(f"Отмечено: {label}")
-    await callback.message.edit_text(f"{callback.message.text}\n\nСтатус: {label}.")
+    try:
+        await callback.message.delete()
+    except Exception:
+        # The action is already persisted; a Telegram deletion failure must not
+        # turn an idempotent response into an error or duplicate the intake.
+        pass

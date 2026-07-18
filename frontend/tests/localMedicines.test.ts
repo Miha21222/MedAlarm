@@ -4,6 +4,7 @@ import {
   mergeRemoteMedicineIntoLocal,
   mergeRemoteMedicines,
   readMedicineStore,
+  settleMedicineSync,
   updateMedicine,
   writeMedicineStore,
 } from "../src/features/medicines/localMedicines";
@@ -27,6 +28,13 @@ const medicine = createMedicine({
 });
 writeMedicineStore([medicine], storage);
 assert(readMedicineStore(storage)[0].name === "Vitamin D", "medicine should round-trip");
+memory.set(
+  "medalarm.medicines.v1",
+  JSON.stringify([medicine, { ...medicine, client_medicine_id: 42 }, { ...medicine, schedules: [{ time: "29:99", days_of_week: "*" }] }]),
+);
+const medicinesAfterCorruption = readMedicineStore(storage);
+assert(medicinesAfterCorruption.length === 1, "corrupted medicine records should be discarded independently");
+assert(medicinesAfterCorruption[0].client_medicine_id === medicine.client_medicine_id, "valid records should survive corruption nearby");
 assert(medicine.created_at === medicine.updated_at, "new medicine should retain its creation timestamp");
 assert(medicine.catalog === null, "manual medicines should normalize an absent catalogue reference to null");
 
@@ -77,7 +85,7 @@ const updated = updateMedicine(medicine, {
 });
 assert(updated.name === "Vitamin D (updated)", "updateMedicine should apply the new fields");
 assert(updated.syncState === "pending", "updateMedicine should mark the record pending");
-assert(Date.parse(updated.updated_at) >= Date.parse(medicine.updated_at), "updateMedicine should bump updated_at");
+assert(Date.parse(updated.updated_at) > Date.parse(medicine.updated_at), "updateMedicine should strictly bump updated_at");
 
 const older: Medicine = {
   ...medicine,
@@ -95,6 +103,25 @@ assert(
 assert(
   mergeRemoteMedicineIntoLocal(undefined, medicine).client_medicine_id === medicine.client_medicine_id,
   "mergeRemoteMedicineIntoLocal should adopt a remote-only record",
+);
+
+const newerLocalEdit: Medicine = {
+  ...updated,
+  name: "newest local edit",
+  updated_at: new Date(Date.parse(updated.updated_at) + 1).toISOString(),
+  syncState: "pending",
+};
+assert(
+  settleMedicineSync(newerLocalEdit, updated, updated).name === "newest local edit",
+  "an older successful request must not overwrite a newer local edit",
+);
+assert(
+  settleMedicineSync(newerLocalEdit, updated).syncState === "pending",
+  "an older failed request must not mark a newer local edit as failed",
+);
+assert(
+  settleMedicineSync(updated, updated, updated).syncState === "synced",
+  "the matching server response should settle the requested edit",
 );
 
 console.log("localMedicines tests passed");

@@ -11,7 +11,7 @@ function assert(condition: unknown, message: string): asserts condition {
 }
 
 function item(overrides: Partial<HistoryItem>): HistoryItem {
-  return {
+  const result: HistoryItem = {
     event_id: "evt",
     medicine: "Aspirin",
     scheduled_at: "2026-07-07T09:00:00.000Z",
@@ -19,6 +19,8 @@ function item(overrides: Partial<HistoryItem>): HistoryItem {
     status: "taken",
     ...overrides,
   };
+  if (overrides.scheduled_at && overrides.responded_at === undefined) result.responded_at = overrides.scheduled_at;
+  return result;
 }
 
 const items: HistoryItem[] = [

@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class TelegramAuthRequest(BaseModel):
-    init_data: str
+    init_data: str = Field(min_length=1, max_length=8192)
 
 
 class SchedulePayload(BaseModel):
@@ -59,23 +59,23 @@ class MedicinePayload(BaseModel):
     client_medicine_id: str = Field(min_length=1, max_length=64)
     name: str = Field(min_length=1, max_length=128)
     dosage_text: str = Field(min_length=1, max_length=128)
-    comment: str | None = None
+    comment: str | None = Field(default=None, max_length=5000)
     catalog: MedicineCatalogSnapshot | None = None
     is_active: bool = True
     created_at: datetime | None = None
     updated_at: datetime
     deleted_at: datetime | None = None
-    schedules: list[SchedulePayload] = []
+    schedules: list[SchedulePayload] = Field(default_factory=list, max_length=24)
 
 
 class MedicineBatchPayload(BaseModel):
-    medicines: list[MedicinePayload]
+    medicines: list[MedicinePayload] = Field(max_length=100)
 
 
 class SettingsPatch(BaseModel):
     language: str | None = Field(default=None, pattern="^(ru|uk|en)$")
     text_size: str | None = Field(default=None, pattern="^(small|regular|large)$")
-    timezone: str | None = None
+    timezone: str | None = Field(default=None, min_length=1, max_length=64)
     default_snooze_minutes: int | None = Field(default=None, ge=1, le=180)
     remind_until_confirmed: bool | None = None
 

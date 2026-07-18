@@ -1,6 +1,6 @@
 # MedAlarm Repository Context
 
-Last verified from the working tree: **2026-07-17**.
+Last verified from the working tree: **2026-07-18**.
 
 This is the current-state handoff for contributors and coding agents. Read it
 with `AGENTS.md`, which contains the binding repository rules. Do not treat
@@ -29,7 +29,8 @@ and a React/Vite Mini App backed by FastAPI.
 
 ## Runtime topology
 
-`Dockerfile` runs `python -m app.runtime`. The supervisor starts:
+`Dockerfile` runs `python -m app.runtime`. The supervisor initializes the shared database once to prevent first-start
+migration races, then starts:
 
 - `uvicorn app.api.main:app` for the API on port 8000;
 - `python main.py` for the combined bot and scheduler.
@@ -66,7 +67,8 @@ Local entrypoints:
 - `app/services/` owns persistence and domain rules. Keep database queries out
   of handlers and API routes.
 - `app/database/session.py::session_scope()` commits on success and rolls back
-  failures.
+  failures. SQLite uses foreign-key enforcement, a 30-second busy timeout, and
+  WAL mode so the API and bot/scheduler processes can safely share the file.
 - `ensure_sqlite_compatibility()` is the additive, idempotent SQLite migration
   mechanism; the project does not use Alembic.
 - Every schedule mutation must be followed by
@@ -111,9 +113,10 @@ Authentication validates Telegram `initData` and issues a signed bearer token.
 otherwise. Never copy `.env` values into documentation or commits.
 
 Medicine synchronization is local-first and last-write-wins by `updated_at`.
-The server replaces the synced schedule collection and catalogue snapshot when
-a newer medicine payload wins. Real history and adherence remain
-server-authoritative.
+When a newer medicine payload wins, the server reconciles schedule slots in
+place (preserving unchanged IDs and historical dispatch links) and replaces the
+catalogue snapshot. Out-of-order client responses cannot overwrite newer local
+edits. Real history and adherence remain server-authoritative.
 
 `python -m app.catalog_update` resolves the latest hosted CSV through the
 `data.gov.ua` CKAN API, decodes its Windows-1251 semicolon format, validates it,
@@ -150,9 +153,9 @@ unresolved dispatch `event_id`. Real actionable doses use the API; local/demo
 fallback actions are recorded idempotently in isolated local storage. A newly
 created medicine includes only schedule slots at or after its creation minute
 on that first local day; earlier slots begin on the next applicable day.
-History can filter by status and by the user's current calendar day,
-Monday-to-Sunday week, or calendar month, group by day or medicine, and show a
-summary. Medicine form drafts are autosaved per create/edit context. New
+History can filter by status and by the response's current calendar day,
+Monday-to-Sunday week, or calendar month, group by response day or medicine,
+and show a summary. Medicine form drafts are autosaved per create/edit context. New
 medicines can be entered manually or selected from the MOH catalogue, with the
 same schedule, dashboard, sync, and history rules. A catalogue selection
 prefills only read-only product identity/reference fields; intake amount,
@@ -184,27 +187,29 @@ Use `.env.example` only as a key inventory. Required production values include
 enables `CATALOG_AUTO_UPDATE`; local developers can refresh explicitly with
 `python -m app.catalog_update`.
 
-The backend CI workflow runs pytest, builds the Docker image, and validates the
-production Compose configuration. The Pages workflow runs all frontend logic
-tests before building. No linter or formatter is configured.
+Backend CI runs Ruff and pytest, builds the Docker image, and validates the
+production Compose configuration. Frontend CI runs ESLint, logic tests, Vitest
+component tests, a production build, and a Playwright Chromium smoke test.
+Ruff and Prettier provide backend/frontend formatting commands.
 
 Verification commands:
 
 ```powershell
+ruff check app tests main.py
 python -m pytest
 
 cd frontend
+npm run lint
 npm run test:local
+npm run test:component
 npm run build
+npm run test:browser
 ```
 
-Backend tests cover services, API/auth/schema behavior, models/migrations,
+Backend tests cover services, HTTP API/auth/schema behavior, models/migrations,
 scheduling, reminder delivery, and Mini App keyboard integration. Frontend
-tests are plain TypeScript/Node checks for local medicine sync, demo/preview
-medicines and catalogue presentation, local intake history, dashboard today
-planning, daily completion, auth gating, Telegram helpers, haptics, persistent
-enum state, and history analysis. There is no browser/component-level
-automated frontend suite yet.
+coverage combines plain TypeScript/Node logic checks, Vitest/Testing Library
+component tests, and a Playwright browser smoke test.
 
 ## Handoff cautions
 

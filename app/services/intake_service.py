@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import Integer, cast, exists, func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -40,7 +40,9 @@ class IntakeService:
             select(MedicineSchedule)
             .join(Medicine, Medicine.id == MedicineSchedule.medicine_id)
             .where(Medicine.user_id == user_id, Medicine.is_active.is_(True))
-            .options(selectinload(MedicineSchedule.medicine))
+            .options(
+                selectinload(MedicineSchedule.medicine).selectinload(Medicine.schedules)
+            )
         )
         schedules = [
             schedule
@@ -132,14 +134,22 @@ class IntakeService:
         medicine_id: int,
         schedule_id: int,
         scheduled_ts: int,
+        user_id: int | None = None,
     ) -> ReminderDispatchLog | None:
-        return await session.scalar(
-            select(ReminderDispatchLog).where(
+        query = (
+            select(ReminderDispatchLog)
+            .where(
                 ReminderDispatchLog.medicine_id == medicine_id,
                 ReminderDispatchLog.schedule_id == schedule_id,
                 ReminderDispatchLog.scheduled_ts == scheduled_ts,
             )
+            .options(selectinload(ReminderDispatchLog.schedule))
         )
+        if user_id is not None:
+            query = query.join(Medicine, Medicine.id == ReminderDispatchLog.medicine_id).where(
+                Medicine.user_id == user_id
+            )
+        return await session.scalar(query)
 
     @staticmethod
     async def has_dispatch(
@@ -179,25 +189,22 @@ class IntakeService:
         limit: int = 50,
         timezone_name: str = "UTC",
     ) -> list[IntakeLog]:
-        scheduled_ts_expr = cast(func.strftime("%s", IntakeLog.scheduled_at), Integer)
-        dispatch_exists = exists(
-            select(ReminderDispatchLog.id).where(
-                ReminderDispatchLog.medicine_id == IntakeLog.medicine_id,
-                ReminderDispatchLog.scheduled_ts == scheduled_ts_expr,
-            )
-        )
         query = (
             select(IntakeLog)
             .join(Medicine, Medicine.id == IntakeLog.medicine_id)
-            .where(Medicine.user_id == user_id, dispatch_exists)
+            .join(ReminderDispatchLog, ReminderDispatchLog.id == IntakeLog.reminder_event_id)
+            .where(
+                Medicine.user_id == user_id,
+                ReminderDispatchLog.medicine_id == IntakeLog.medicine_id,
+            )
             .options(selectinload(IntakeLog.medicine))
-            .order_by(IntakeLog.scheduled_at.desc())
+            .order_by(IntakeLog.responded_at.desc())
             .limit(limit)
         )
         period_start, period_end = period_range(period, datetime.now(UTC), timezone_name)
-        query = query.where(IntakeLog.scheduled_at >= period_start)
+        query = query.where(IntakeLog.responded_at >= period_start)
         if period_end is not None:
-            query = query.where(IntakeLog.scheduled_at < period_end)
+            query = query.where(IntakeLog.responded_at < period_end)
         if medicine_id is not None:
             query = query.where(IntakeLog.medicine_id == medicine_id)
         result = await session.execute(query)
@@ -215,23 +222,17 @@ class IntakeService:
         end_local = start_local + timedelta(days=1)
         start_utc = start_local.astimezone(UTC)
         end_utc = end_local.astimezone(UTC)
-        scheduled_ts_expr = cast(func.strftime("%s", IntakeLog.scheduled_at), Integer)
-        dispatch_exists = exists(
-            select(ReminderDispatchLog.id).where(
-                ReminderDispatchLog.medicine_id == IntakeLog.medicine_id,
-                ReminderDispatchLog.scheduled_ts == scheduled_ts_expr,
-            )
-        )
         result = await session.execute(
             select(IntakeLog)
             .join(Medicine, Medicine.id == IntakeLog.medicine_id)
+            .join(ReminderDispatchLog, ReminderDispatchLog.id == IntakeLog.reminder_event_id)
             .where(
                 Medicine.user_id == user_id,
-                IntakeLog.scheduled_at >= start_utc,
-                IntakeLog.scheduled_at < end_utc,
-                dispatch_exists,
+                ReminderDispatchLog.medicine_id == IntakeLog.medicine_id,
+                IntakeLog.responded_at >= start_utc,
+                IntakeLog.responded_at < end_utc,
             )
-            .order_by(IntakeLog.scheduled_at.desc())
+            .order_by(IntakeLog.responded_at.desc())
         )
         logs = list(result.scalars())
         status_by_medicine: dict[int, str] = {}

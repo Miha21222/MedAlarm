@@ -14,10 +14,11 @@ export async function syncMedicine(clientMedicineId: string, payload: Medicine):
   return result.medicine;
 }
 
-export async function syncMedicineBatch(medicines: Medicine[]): Promise<void> {
-  if (medicines.length === 0) return;
-  await apiRequest("/sync/batch", {
+export async function syncMedicineBatch(medicines: Medicine[]): Promise<Medicine[]> {
+  if (medicines.length === 0) return [];
+  const result = await apiRequest<{ items: Array<{ applied: boolean; medicine: Medicine }> }>("/sync/batch", {
     method: "POST",
     body: JSON.stringify({ medicines }),
   });
+  return result.items.map((item) => item.medicine);
 }

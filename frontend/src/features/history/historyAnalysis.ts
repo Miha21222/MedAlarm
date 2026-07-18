@@ -18,6 +18,10 @@ export interface HistoryFilters {
 
 export const ALL_MEDICINES = "all";
 
+function historyTimestamp(item: HistoryItem): string {
+  return item.responded_at || item.scheduled_at;
+}
+
 export function filterHistory(items: HistoryItem[], filters: HistoryFilters): HistoryItem[] {
   const now = filters.now ?? new Date();
   const periodRange = filters.period
@@ -28,8 +32,8 @@ export function filterHistory(items: HistoryItem[], filters: HistoryFilters): Hi
     if (filters.status !== "all" && item.status !== filters.status) return false;
     if (filters.medicine && filters.medicine !== ALL_MEDICINES && item.medicine !== filters.medicine) return false;
     if (periodRange !== null) {
-      const scheduledAt = Date.parse(item.scheduled_at);
-      if (!Number.isFinite(scheduledAt) || scheduledAt < periodRange.start || scheduledAt >= periodRange.end) return false;
+      const respondedAt = Date.parse(historyTimestamp(item));
+      if (!Number.isFinite(respondedAt) || respondedAt < periodRange.start || respondedAt >= periodRange.end) return false;
     }
     return true;
   });
@@ -61,7 +65,7 @@ export function groupHistory(
 
   const buckets = new Map<string, HistoryItem[]>();
   for (const item of items) {
-    const key = groupBy === "day" ? dayKeyInTimezone(item.scheduled_at, timezone) : item.medicine;
+    const key = groupBy === "day" ? dayKeyInTimezone(historyTimestamp(item), timezone) : item.medicine;
     const bucket = buckets.get(key);
     if (bucket) {
       bucket.push(item);
@@ -72,7 +76,7 @@ export function groupHistory(
 
   const groups = [...buckets.entries()].map(([key, groupItems]) => ({
     key,
-    label: groupBy === "day" ? formatDayInTimezone(groupItems[0].scheduled_at, timezone, locale) : key,
+    label: groupBy === "day" ? formatDayInTimezone(historyTimestamp(groupItems[0]), timezone, locale) : key,
     items: groupItems,
   }));
 

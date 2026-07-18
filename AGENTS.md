@@ -149,17 +149,21 @@ docker compose up --build -d
 cd frontend
 npm install
 npm run dev:local    # local preview, stubs Telegram auth
-npm run build
+npm run lint
 npm run test:local
+npm run test:component
+npm run build
+npm run test:browser
 ```
 
-CI: `.github/workflows/backend-tests.yml` runs `pytest` on backend changes.
-`.github/workflows/github-pages.yml` builds and deploys `frontend/` to GitHub
-Pages on push to `main`. No linter or formatter is configured for either side.
+CI: `.github/workflows/backend-tests.yml` runs Ruff and `pytest` on backend
+changes. `.github/workflows/frontend-tests.yml` runs ESLint, logic/component
+and Playwright tests, plus a production build. `.github/workflows/github-pages.yml`
+builds and deploys `frontend/` to GitHub Pages on push to `main`.
 
 Backend CI also builds the image and validates production Compose. Pages CI
-runs `npm run test:local`, requires an HTTPS API URL ending in `/api/v1`, and
-builds with the `/MedAlarm/` base path. Production uses one SQLite-backed
+runs lint plus logic/component tests, requires an HTTPS API URL ending in
+`/api/v1`, and builds with the `/MedAlarm/` base path. Production uses one SQLite-backed
 backend replica plus the optional pinned `cloudflared` service. Deployment,
 backup, restore, and rollback instructions are in `deploy/README.md`.
 
@@ -182,7 +186,7 @@ than silently running with the insecure default.
   data and must never be uploaded or represented as a real dispatch response.
 - The Mini App schedule form remains daily-oriented even though the model can
   represent weekday selections.
-- Frontend tests are plain TypeScript/Node logic tests; there is no automated
-  browser or component suite. Coverage includes local medicine sync,
+- Frontend coverage includes plain TypeScript/Node logic tests, Vitest/Testing
+  Library component tests, and a Playwright Chromium smoke suite. Coverage includes local medicine sync,
   preview/demo medicines, local intake history, daily completion, auth gating,
   Telegram helpers, haptics, persistent enum state, and history analysis.

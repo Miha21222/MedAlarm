@@ -11,6 +11,8 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 - Added timezone-aware local-preview fixtures for today's intake history and
   MOH catalogue search, including catalogue-linked demo medicines.
+- Added Ruff, ESLint, and Prettier configuration plus HTTP API, Vitest component,
+  and Playwright browser coverage enforced by CI.
 
 ### Changed
 
@@ -31,6 +33,20 @@ and this project follows [Semantic Versioning](https://semver.org/).
   minute on the first day; earlier times begin on the next applicable day.
 - Applied creation, sync, dashboard, and history rules equally to manually
   entered and MOH catalogue-linked medicines.
+- Hardened the shared SQLite runtime with WAL, foreign-key enforcement, lock
+  waiting, and single-process schema initialization before API/bot startup.
+- Prevented reminder callback races, cross-user callback lookup, phantom failed
+  deliveries, incorrect per-schedule snooze timing, and unhandled Telegram UI
+  update failures.
+- Prevented out-of-order medicine/settings requests from overwriting newer
+  client state; network requests now time out and dashboard/history failures are
+  handled visibly instead of becoming unhandled promise rejections.
+- Tightened Telegram auth parsing and token expiry handling, bounded sync/auth
+  payload sizes, and removed the obsolete `/menu` bot command.
+- Validated complete local medicine records before exposing them to UI consumers
+  and persisted failed settings snapshots for ordered retry after reload.
+- Removed production-unreachable legacy medicine/FSM/reply-keyboard helpers and
+  the unused user-today schedule query.
 
 ## [1.1.1] - 2026-07-16
 

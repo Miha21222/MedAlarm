@@ -103,8 +103,11 @@ class MedicineSchedule(Base):
     remind_until_confirmed: Mapped[bool] = mapped_column(Boolean, default=True)
 
     medicine: Mapped[Medicine] = relationship(back_populates="schedules")
+    # Dispatches are historical events and must survive schedule edits. The
+    # nullable schedule_id is cleared when a slot is removed; deleting the
+    # medicine still removes dispatches through Medicine.reminder_dispatch_logs.
     reminder_dispatch_logs: Mapped[list["ReminderDispatchLog"]] = relationship(
-        back_populates="schedule", cascade="all, delete-orphan"
+        back_populates="schedule"
     )
 
 

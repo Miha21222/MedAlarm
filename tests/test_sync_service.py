@@ -5,6 +5,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from app.api.routes import dashboard_today
 from app.database.models import IntakeLog, Medicine, MedicineSchedule, ReminderDispatchLog, User
 from app.services.intake_service import IntakeService
 from app.services.medicine_sync_service import MedicineSyncPayload, MedicineSyncService, ScheduleSyncPayload
@@ -71,6 +72,107 @@ async def test_newer_medicine_aggregate_replaces_schedules(db_session):
 
 
 @pytest.mark.asyncio
+async def test_sync_reuses_unchanged_schedule_without_unique_constraint_failure(db_session):
+    user = User(telegram_id=8107, timezone="UTC")
+    db_session.add(user)
+    await db_session.flush()
+    older = datetime.now(UTC) - timedelta(minutes=1)
+    payload = MedicineSyncPayload(
+        client_medicine_id="stable-slot",
+        name="Medicine",
+        dosage_text="1",
+        comment=None,
+        is_active=True,
+        updated_at=older,
+        deleted_at=None,
+        schedules=[ScheduleSyncPayload(time="18:10", days_of_week="*")],
+    )
+    _, medicine = await MedicineSyncService.apply(db_session, user, payload)
+    await db_session.commit()
+    original_schedule_id = medicine.schedules[0].id
+
+    applied, medicine = await MedicineSyncService.apply(
+        db_session,
+        user,
+        replace(
+            payload,
+            updated_at=older + timedelta(minutes=1),
+            schedules=[
+                ScheduleSyncPayload(time="18:10", days_of_week="*", snooze_minutes=15),
+                ScheduleSyncPayload(time="18:10", days_of_week="*", snooze_minutes=20),
+            ],
+        ),
+    )
+    await db_session.commit()
+
+    assert applied is True
+    assert len(medicine.schedules) == 1
+    assert medicine.schedules[0].id == original_schedule_id
+    assert medicine.schedules[0].snooze_minutes == 20
+
+
+@pytest.mark.asyncio
+async def test_schedule_change_preserves_linked_reminder_history(db_session):
+    user = User(telegram_id=8108, timezone="UTC")
+    db_session.add(user)
+    await db_session.flush()
+    older = datetime.now(UTC) - timedelta(minutes=1)
+    payload = MedicineSyncPayload(
+        client_medicine_id="historical-slot",
+        name="Medicine",
+        dosage_text="1",
+        comment=None,
+        is_active=True,
+        updated_at=older,
+        deleted_at=None,
+        schedules=[ScheduleSyncPayload(time="08:00", days_of_week="*")],
+    )
+    _, medicine = await MedicineSyncService.apply(db_session, user, payload)
+    dispatch = ReminderDispatchLog(
+        event_id="evt-before-schedule-edit",
+        medicine_id=medicine.id,
+        schedule_id=medicine.schedules[0].id,
+        scheduled_ts=int(older.timestamp()),
+        status="taken",
+        resolved_at=older,
+    )
+    db_session.add(dispatch)
+    await db_session.flush()
+    intake = IntakeLog(
+        medicine_id=medicine.id,
+        reminder_event_id=dispatch.id,
+        scheduled_at=older,
+        responded_at=older,
+        status="taken",
+    )
+    db_session.add(intake)
+    await db_session.commit()
+    dispatch_db_id = dispatch.id
+
+    await MedicineSyncService.apply(
+        db_session,
+        user,
+        replace(
+            payload,
+            updated_at=older + timedelta(minutes=1),
+            schedules=[ScheduleSyncPayload(time="09:00", days_of_week="*")],
+        ),
+    )
+    await db_session.commit()
+    db_session.expire_all()
+
+    stored_dispatch = await db_session.scalar(
+        select(ReminderDispatchLog).where(ReminderDispatchLog.event_id == "evt-before-schedule-edit")
+    )
+    stored_intake = await db_session.scalar(
+        select(IntakeLog).where(IntakeLog.reminder_event_id == dispatch_db_id)
+    )
+    assert stored_dispatch is not None
+    assert stored_dispatch.schedule_id is None
+    assert stored_intake is not None
+
+
+@pytest.mark.asyncio
 async def test_older_medicine_aggregate_is_ignored(db_session):
     user = User(telegram_id=8102, timezone="UTC")
     db_session.add(user)
@@ -134,6 +236,38 @@ async def test_manual_and_catalogue_medicines_share_sync_and_dashboard_rules(db_
     assert doses_by_medicine["manual-parity"].schedule.time == doses_by_medicine["catalogue-parity"].schedule.time
     assert doses_by_medicine["manual-parity"].status == doses_by_medicine["catalogue-parity"].status == "pending"
     assert doses_by_medicine["manual-parity"].actionable is doses_by_medicine["catalogue-parity"].actionable is False
+
+
+@pytest.mark.asyncio
+async def test_dashboard_today_serializes_schedules_after_fresh_database_load(db_session):
+    user = User(telegram_id=8106, timezone="UTC")
+    db_session.add(user)
+    await db_session.flush()
+    now = datetime.now(UTC)
+    await MedicineSyncService.apply(
+        db_session,
+        user,
+        MedicineSyncPayload(
+            client_medicine_id="dashboard-prod",
+            name="Dashboard medicine",
+            dosage_text="1",
+            comment=None,
+            is_active=True,
+            created_at=now - timedelta(days=1),
+            updated_at=now,
+            deleted_at=None,
+            schedules=[ScheduleSyncPayload(time="16:00", days_of_week="*")],
+        ),
+    )
+    await db_session.commit()
+    db_session.expunge_all()
+    fresh_user = await db_session.scalar(select(User).where(User.telegram_id == 8106))
+    assert fresh_user is not None
+
+    payload = await dashboard_today(user=fresh_user, session=db_session)
+
+    assert len(payload["items"]) == 1
+    assert payload["items"][0]["schedules"][0]["time"] == "16:00"
 
 
 @pytest.mark.asyncio

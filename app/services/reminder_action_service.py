@@ -45,13 +45,14 @@ class ReminderActionService:
         if existing is not None:
             return ReminderActionResult(event.event_id, existing.status, existing.id)
 
+        now = datetime.now(UTC)
         scheduled_at = datetime.fromtimestamp(event.scheduled_ts, tz=UTC)
         intake = IntakeLog(
             medicine_id=event.medicine_id,
             reminder_event_id=event.id,
             scheduled_at=scheduled_at,
             status=action,
-            responded_at=datetime.now(UTC),
+            responded_at=now,
         )
         try:
             async with session.begin_nested():
@@ -65,7 +66,7 @@ class ReminderActionService:
                 raise
             return ReminderActionResult(event.event_id, existing.status, existing.id)
         event.status = action
-        event.resolved_at = datetime.now(UTC)
+        event.resolved_at = now
         event.snoozed_until = None
         await session.flush()
         return ReminderActionResult(event.event_id, action, intake.id)
