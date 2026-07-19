@@ -49,7 +49,7 @@ async def test_send_reminder_sends_message_without_lazy_loading_error(monkeypatc
             medicine_id=medicine.id,
             time="15:27",
             days_of_week="*",
-            snooze_minutes=10,
+            snooze_minutes=25,
             remind_until_confirmed=True,
         )
         session.add(schedule)
@@ -95,6 +95,8 @@ async def test_send_reminder_sends_message_without_lazy_loading_error(monkeypatc
 
     assert bot.messages[0]["text"]
     assert "15:27" in bot.messages[0]["text"]
+    snooze_button = bot.messages[0]["reply_markup"].inline_keyboard[1][0]
+    assert snooze_button.text == "⏰ Напомнить через 25 минут"
 
     await engine.dispose()
 
@@ -113,7 +115,12 @@ async def test_snooze_is_restored_and_cleared_after_delivery(monkeypatch):
         medicine = Medicine(user_id=user.id, name="D3", dosage_text="1", is_active=True)
         session.add(medicine)
         await session.flush()
-        schedule = MedicineSchedule(medicine_id=medicine.id, time="10:00", days_of_week="*")
+        schedule = MedicineSchedule(
+            medicine_id=medicine.id,
+            time="10:00",
+            days_of_week="*",
+            snooze_minutes=35,
+        )
         session.add(schedule)
         await session.flush()
         dispatch = ReminderDispatchLog(
@@ -159,4 +166,6 @@ async def test_snooze_is_restored_and_cleared_after_delivery(monkeypatch):
     assert scheduler._bot.edits[0]["chat_id"] == 555002
     assert scheduler._bot.edits[0]["message_id"] == 42
     assert scheduler._bot.edits[0]["reply_markup"] is not None
+    snooze_button = scheduler._bot.edits[0]["reply_markup"].inline_keyboard[1][0]
+    assert snooze_button.text == "⏰ Напомнить через 35 минут"
     await engine.dispose()

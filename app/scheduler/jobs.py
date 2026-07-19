@@ -189,6 +189,7 @@ class ReminderScheduler:
                 medicine_id=medicine.id,
                 schedule_id=schedule.id,
                 scheduled_ts=dispatch.scheduled_ts,
+                snooze_minutes=schedule.snooze_minutes,
             ),
         )
         async with session_scope() as session:
@@ -244,6 +245,7 @@ class ReminderScheduler:
                     medicine_id=medicine.id,
                     schedule_id=schedule.id,
                     scheduled_ts=scheduled_ts,
+                    snooze_minutes=schedule.snooze_minutes,
                 ),
             )
         except Exception:

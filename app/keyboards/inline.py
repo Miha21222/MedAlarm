@@ -13,7 +13,12 @@ def open_mini_app_keyboard(mini_app_url: str | None = None) -> InlineKeyboardMar
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def reminder_keyboard(medicine_id: int, schedule_id: int, scheduled_ts: int) -> InlineKeyboardMarkup:
+def reminder_keyboard(
+    medicine_id: int,
+    schedule_id: int,
+    scheduled_ts: int,
+    snooze_minutes: int,
+) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -24,7 +29,7 @@ def reminder_keyboard(medicine_id: int, schedule_id: int, scheduled_ts: int) -> 
             ],
             [
                 InlineKeyboardButton(
-                    text="⏰ Напомнить через 10 минут",
+                    text=f"⏰ Напомнить через {snooze_minutes} минут",
                     callback_data=f"rem:snooze:{medicine_id}:{schedule_id}:{scheduled_ts}",
                 )
             ],
