@@ -53,7 +53,9 @@ async def reminder_action(callback: CallbackQuery) -> None:
         if scheduler is None:
             await callback.answer("Отложить сейчас не удалось. Попробуйте ещё раз.", show_alert=True)
             return
-        minutes = dispatch.schedule.snooze_minutes if dispatch.schedule is not None else user.default_snooze_minutes
+        # Resolve the account setting at click time as well, so callbacks from
+        # reminders created before a settings change use the current default.
+        minutes = user.default_snooze_minutes
         try:
             await scheduler.schedule_snooze(
                 event_id=dispatch.event_id,

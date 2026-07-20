@@ -87,7 +87,9 @@ class MedicineSyncService:
             if slot is None:
                 medicine.schedules.remove(schedule)
                 continue
-            schedule.snooze_minutes = slot.snooze_minutes or user.default_snooze_minutes
+            # Snooze is account-owned. Ignore stale per-device/per-medicine
+            # snapshots so every existing and future slot follows settings.
+            schedule.snooze_minutes = user.default_snooze_minutes
             schedule.remind_until_confirmed = (
                 user.remind_until_confirmed
                 if slot.remind_until_confirmed is None
@@ -99,7 +101,7 @@ class MedicineSyncService:
                 MedicineSchedule(
                     time=slot.time,
                     days_of_week=slot.days_of_week,
-                    snooze_minutes=slot.snooze_minutes or user.default_snooze_minutes,
+                    snooze_minutes=user.default_snooze_minutes,
                     remind_until_confirmed=(
                         user.remind_until_confirmed
                         if slot.remind_until_confirmed is None

@@ -18,7 +18,8 @@ export function useMedicinesAllQuery(enabled = true) {
     queryFn: bootstrapMedicineSync,
     enabled,
     staleTime: 0,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
+    refetchInterval: 30_000,
   });
 
   useEffect(() => {

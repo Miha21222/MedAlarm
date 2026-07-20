@@ -108,7 +108,7 @@ async def test_sync_reuses_unchanged_schedule_without_unique_constraint_failure(
     assert applied is True
     assert len(medicine.schedules) == 1
     assert medicine.schedules[0].id == original_schedule_id
-    assert medicine.schedules[0].snooze_minutes == 20
+    assert medicine.schedules[0].snooze_minutes == user.default_snooze_minutes
 
 
 @pytest.mark.asyncio
