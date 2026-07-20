@@ -7,20 +7,56 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-07-20
+
+### Changed
+
+- **Breaking:** Made browser storage authoritative for medicines, app settings,
+  and the dashboard plan. The backend now receives complete medicine snapshots
+  only for reminder delivery and optional cross-device recovery.
+- **Breaking:** Replaced `GET/PATCH /api/v1/settings/me` with
+  `PATCH /api/v1/reminders/config`. Telegram authentication no longer returns
+  app settings, so the backend and frontend must be deployed together.
+- Limited networked settings to the language, timezone, snooze, and repeat
+  projection required by the reminder runtime.
+- Server dashboard data now overlays dispatch state without replacing local
+  medicine content; real adherence remains tied to server dispatch events.
+
+## [1.3.0] - 2026-07-20
+
+### Added
+
+- Added account-scoped medicine recovery so a Telegram account can restore and
+  synchronize its medicine snapshots across devices while preserving legacy
+  local records.
+
+### Changed
+
+- Scoped frontend medicine caches by Telegram account and refreshed server
+  state across active clients.
+- Applied the account's current snooze setting to existing and future schedules,
+  reminder buttons, restored reminders, and legacy callbacks.
+
+### Fixed
+
+- Replaced the hardcoded Telegram snooze label with each schedule's configured
+  duration for both initial and re-delivered reminders.
+- Added an idempotent SQLite normalization for existing schedule snooze values
+  without recreating medicines, dispatches, or intake history.
+
+## [1.2.0] - 2026-07-18
+
 ### Added
 
 - Added timezone-aware local-preview fixtures for today's intake history and
   MOH catalogue search, including catalogue-linked demo medicines.
 - Added Ruff, ESLint, and Prettier configuration plus HTTP API, Vitest component,
   and Playwright browser coverage enforced by CI.
+- Added Russian, Ukrainian, and English product guides with current screenshots,
+  onboarding, local setup, architecture, testing, and operations guidance.
 
 ### Changed
 
-- Made browser storage authoritative for medicines, app settings, and the
-  dashboard plan. The backend now receives only medicine snapshots and the
-  language/timezone/snooze/repeat projection required for reminders; UI-only
-  settings no longer cross the network, and server dashboard data overlays
-  dispatch state without replacing local medicine content.
 - History periods now use the user's current calendar day, Monday-to-Sunday
   week, and calendar month instead of rolling 24-hour, 7-day, and 30-day
   windows.
@@ -174,7 +210,10 @@ from; earlier bot-only history exists as untagged commits on `main`.
 - Added tagged VPS release, SQLite backup, restore, rollback, and operational
   verification scripts under `deploy/`.
 
-[Unreleased]: https://github.com/Miha21222/MedAlarm/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/Miha21222/MedAlarm/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/Miha21222/MedAlarm/compare/v1.3.0...v2.0.0
+[1.3.0]: https://github.com/Miha21222/MedAlarm/compare/v1.2.0...v1.3.0
+[1.2.0]: https://github.com/Miha21222/MedAlarm/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/Miha21222/MedAlarm/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/Miha21222/MedAlarm/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/Miha21222/MedAlarm/compare/v1.0.0...v1.0.1
