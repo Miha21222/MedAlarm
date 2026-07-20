@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 import logging
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
@@ -10,6 +10,7 @@ from app.config import load_settings
 from app.database.session import init_db
 from app.database.session import SessionLocal, session_scope
 from app.services.medicine_catalog_service import MedicineCatalogService
+from app.version import APP_VERSION
 
 
 logger = logging.getLogger(__name__)
@@ -28,7 +29,7 @@ async def lifespan(_: FastAPI):
 
 
 settings = load_settings()
-app = FastAPI(title="MedAlarm API", version="1.1.1", lifespan=lifespan)
+app = FastAPI(title="MedAlarm API", version=APP_VERSION, lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=list(settings.cors_allowed_origins),
@@ -42,6 +43,12 @@ app.include_router(router)
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/api/v1/version")
+async def version(response: Response) -> dict[str, str]:
+    response.headers["Cache-Control"] = "no-store"
+    return {"version": APP_VERSION}
 
 
 @app.get("/ready")

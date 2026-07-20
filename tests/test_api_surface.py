@@ -3,15 +3,20 @@ from httpx import ASGITransport, AsyncClient
 
 from app.api.dependencies import get_session
 from app.api.main import app
+from app.version import APP_VERSION
 
 
 @pytest.mark.asyncio
 async def test_api_health_and_readiness():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         health = await client.get("/health")
+        version = await client.get("/api/v1/version")
         readiness = await client.get("/ready")
     assert health.status_code == 200
     assert health.json() == {"status": "ok"}
+    assert version.status_code == 200
+    assert version.json() == {"version": APP_VERSION}
+    assert version.headers["cache-control"] == "no-store"
     assert readiness.status_code == 200
     assert readiness.json() == {"status": "ready"}
 

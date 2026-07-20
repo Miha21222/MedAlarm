@@ -40,7 +40,8 @@ the in-memory scheduler. Production is limited to one backend replica while it
 uses SQLite and Telegram long polling. Compose persists `/app/data` in the
 `medalarm_data` volume and optionally starts the pinned `cloudflared` service
 through the `production` profile. `/ready` checks database readiness; `/health`
-checks the API process.
+checks the API process. Public `/api/v1/version` reports the version baked into
+that backend image and disables caching so deployment checks stay current.
 
 The frontend is deployed separately by `.github/workflows/github-pages.yml` on
 pushes to `main`. The workflow tests and builds `frontend/`, requires an HTTPS
@@ -95,6 +96,7 @@ adherence history without a dispatch.
 `app/api/main.py` initializes the database during lifespan, configures CORS,
 and mounts these routes under `/api/v1`:
 
+- `GET /version` (public, no-cache backend runtime version)
 - `GET /catalog/status`
 - `GET /catalog/medicines?q=...`
 - `POST /auth/telegram`
@@ -172,7 +174,10 @@ personalized dosage or treatment advice.
 Settings lives in localStorage and includes Small/Regular/Large typography
 presets that apply a font scale across the Mini App. Only reminder-relevant
 language/timezone/snooze/repeat values are projected to the backend. Settings
-also links to rating and bug-report forms.
+also links to rating and bug-report forms. Its version panel compares the
+frontend version embedded by Vite with the backend runtime version from the
+public API and highlights mismatches; both derive from `frontend/package.json`
+in their independently deployed artifacts.
 Authenticated submissions are
 stored in the backend and relayed best-effort to the configured Telegram forum
 chat (rating topic 3, bug topic 5). Bug reports accept an optional JPEG, PNG,

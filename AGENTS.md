@@ -82,8 +82,9 @@ medical advice, dosage recommendations, or treatment changes.
   handlers.
 - `app/scheduler/__main__.py`: scheduler-only entrypoint for split-process
   local dev; not used by Docker.
-- `app/api/`: FastAPI backend for the Mini App (`main.py` app + CORS,
-  `routes.py` prefix `/api/v1` — public catalogue status/search, auth, sync,
+- `app/api/`: FastAPI backend for the Mini App (`main.py` app + CORS and the
+  public no-cache `/api/v1/version` runtime-version endpoint, `routes.py`
+  prefix `/api/v1` — public catalogue status/search, auth, sync,
   reminder configuration, dashboard, history, reminder actions, `auth.py` Telegram initData
   validation + bearer tokens,
   `schemas.py`, `dependencies.py`).
@@ -107,7 +108,9 @@ medical advice, dosage recommendations, or treatment changes.
   preview state; demo actions use a separate history storage key and never
   alter real history. `src/features/history/` provides period/status filters,
   day/medicine grouping, and summaries. Medicine drafts are autosaved per form
-  context.
+  context. Settings displays the independently loaded frontend and backend
+  versions and warns when a deployment is incomplete; both artifacts derive
+  their version from `frontend/package.json`.
 - Demo mode is development-only: `main.tsx` configures it from
   `import.meta.env.DEV`, production clears any stale demo localStorage flag,
   and attempts to re-enable it are ignored.

@@ -7,6 +7,11 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Added a Settings version panel that independently reports the frontend build
+  and backend runtime versions and highlights incomplete deployments.
+
 ## [2.0.0] - 2026-07-20
 
 ### Changed

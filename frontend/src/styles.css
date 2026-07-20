@@ -338,6 +338,14 @@ textarea { resize: vertical; }
 .settings-link strong { font: 800 13px "Manrope"; }
 .settings-link small { color: var(--muted); font-size: 11px; line-height: 1.35; }
 .settings-link:focus-visible { outline: 0; box-shadow: 0 0 0 4px rgba(10,166,166,.14); }
+.settings-version-panel { display: grid; gap: 9px; padding: 12px; border: 1px solid rgba(7,59,111,.07); border-radius: 15px; background: linear-gradient(145deg, #fbfeff, var(--ice)); }
+.settings-version-heading { display: flex; align-items: center; gap: 8px; }
+.settings-version-heading > svg { color: var(--teal); }
+.settings-version-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 12px; }
+.settings-version-row strong { color: var(--navy); font: 800 12px "Manrope"; }
+.settings-version-status { padding-top: 7px; border-top: 1px solid rgba(7,59,111,.07); color: var(--muted); font-size: 11px; line-height: 1.4; }
+.settings-version-status.match { color: #087966; }
+.settings-version-status.warning { color: #a23c49; }
 
 .feedback-form { gap: 18px; }
 .feedback-intro h2 { margin: 0; color: var(--navy); font: 800 21px "Manrope"; }
@@ -469,11 +477,12 @@ textarea { resize: vertical; }
 .bottom-nav a { font-size: calc(9px * var(--font-scale)); }
 .language-btn, .preview-data-panel small, .dose-actions button, .time-row span,
 .entry-method-switch button, .catalog-results small, .catalog-disclaimer,
-.settings-section-title, .settings-link small, .history-summary-percent span,
+.settings-section-title, .settings-link small, .settings-version-status, .history-summary-percent span,
 .text-size-presets button { font-size: calc(11px * var(--font-scale)); }
 .preview-data-panel strong, .field-note, .catalog-results span,
 .catalog-instruction-link, .catalog-info-tooltip > span, .history-row time, .history-filters select,
-.history-group-label, .text-size-setting-copy small { font-size: calc(12px * var(--font-scale)); }
+.history-group-label, .text-size-setting-copy small, .settings-version-row,
+.settings-version-row strong { font-size: calc(12px * var(--font-scale)); }
 .dose-copy span, .medicine-card p, input::placeholder, textarea::placeholder,
 .catalog-message, .catalog-info-tooltip strong, .catalog-details dd, .settings-link strong,
 .feedback-rating-field legend, .feedback-form label,
