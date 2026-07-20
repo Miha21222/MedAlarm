@@ -1,5 +1,7 @@
-import { Bug, Star, Type } from "lucide-react";
+import { Bug, Info, Star, Type } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { fetchBackendVersion, FRONTEND_VERSION } from "../api/version";
 import { useAppSettings } from "../contexts/AppSettingsContext";
 import type { TextSize } from "../types";
 import { useHapticsEnabled } from "../utils/haptics";
@@ -8,6 +10,37 @@ import { snoozeOptions, timezoneLabel, timezoneOptions } from "../utils/settings
 export function SettingsPage() {
   const { settings, updateSettings, t } = useAppSettings();
   const [hapticsEnabled, setHapticsEnabled] = useHapticsEnabled();
+  const [backendVersion, setBackendVersion] = useState<string | null>();
+
+  useEffect(() => {
+    let active = true;
+    void fetchBackendVersion()
+      .then((version) => {
+        if (active) setBackendVersion(version);
+      })
+      .catch(() => {
+        if (active) setBackendVersion(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const formatVersion = (version: string) => (version === "unknown" ? t("versionUnavailable") : `v${version}`);
+  const versionStatus =
+    backendVersion === undefined
+      ? t("versionChecking")
+      : backendVersion === null || FRONTEND_VERSION === "unknown" || backendVersion === "unknown"
+        ? t("versionUnavailable")
+        : backendVersion === FRONTEND_VERSION
+          ? t("versionMatch")
+          : t("versionMismatch");
+  const versionStatusTone =
+    backendVersion && backendVersion !== "unknown" && FRONTEND_VERSION !== "unknown"
+      ? backendVersion === FRONTEND_VERSION
+        ? "match"
+        : "warning"
+      : "neutral";
 
   return (
     <section className="page-stack">
@@ -105,6 +138,30 @@ export function SettingsPage() {
               <small>{t("reportBugHint")}</small>
             </span>
           </Link>
+        </div>
+        <div className="settings-divider" />
+        <div className="settings-version-panel">
+          <div className="settings-version-heading">
+            <Info size={20} aria-hidden="true" />
+            <span className="settings-section-title">{t("appVersion")}</span>
+          </div>
+          <div className="settings-version-row">
+            <span>{t("frontendVersion")}</span>
+            <strong>{formatVersion(FRONTEND_VERSION)}</strong>
+          </div>
+          <div className="settings-version-row">
+            <span>{t("backendVersion")}</span>
+            <strong>
+              {backendVersion === undefined
+                ? t("versionChecking")
+                : backendVersion === null
+                  ? t("versionUnavailable")
+                  : formatVersion(backendVersion)}
+            </strong>
+          </div>
+          <small className={`settings-version-status ${versionStatusTone}`} aria-live="polite">
+            {versionStatus}
+          </small>
         </div>
       </div>
     </section>
