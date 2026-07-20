@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class TelegramAuthRequest(BaseModel):
@@ -72,9 +72,10 @@ class MedicineBatchPayload(BaseModel):
     medicines: list[MedicinePayload] = Field(max_length=100)
 
 
-class SettingsPatch(BaseModel):
+class ReminderConfigPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     language: str | None = Field(default=None, pattern="^(ru|uk|en)$")
-    text_size: str | None = Field(default=None, pattern="^(small|regular|large)$")
     timezone: str | None = Field(default=None, min_length=1, max_length=64)
     default_snooze_minutes: int | None = Field(default=None, ge=1, le=180)
     remind_until_confirmed: bool | None = None

@@ -78,39 +78,21 @@ export async function deleteLocalMedicine(medicine: Medicine): Promise<Medicine>
   return persistWithSync(tombstoneMedicine(medicine));
 }
 
-// The concurrency-critical function, modeled on PocketMind's bootstrapTaskSync():
-// pushes any locally-pending medicines, then re-reads the store fresh (not the
-// pre-request snapshot) before merging the bootstrap response in, so a medicine
-// deleted locally while this round trip is in flight isn't resurrected.
+// PocketMind's proven multi-device bootstrap: push the complete local snapshot
+// first, receive the complete Telegram-account snapshot back, then merge it
+// against a fresh local read so edits made during the request are not lost.
 export async function bootstrapMedicineSync(): Promise<Medicine[]> {
   if (!hasAuthToken()) return listLocalMedicines();
 
-  const remote = await bootstrapSync();
-  const remoteIds = new Set(remote.map((medicine) => medicine.client_medicine_id));
-  // Legacy installs could label a record "synced" even though it only existed
-  // in that device's localStorage. Preserve and upload such records before the
-  // server becomes the universal Telegram-account source for every device.
-  const local = readMedicineStore().map((medicine) =>
-    remoteIds.has(medicine.client_medicine_id)
-      ? medicine
-      : { ...medicine, syncState: "pending" as const },
-  );
-  const merged = mergeRemoteMedicines(local, remote);
-  writeMedicineStore(merged);
-
-  const pending = merged.filter((medicine) => medicine.syncState === "pending" || medicine.syncState === "error");
-  if (pending.length > 0) {
-    const remoteResults = await syncMedicineBatch(pending);
-    const requestedById = new Map(pending.map((medicine) => [medicine.client_medicine_id, medicine]));
-    const remoteById = new Map(remoteResults.map((medicine) => [medicine.client_medicine_id, medicine]));
-    const settled = readMedicineStore().map((current) => {
-      const requested = requestedById.get(current.client_medicine_id);
-      return requested
-        ? settleMedicineSync(current, requested, remoteById.get(current.client_medicine_id))
-        : current;
-    });
-    writeMedicineStore(settled);
+  try {
+    const local = readMedicineStore();
+    const remote = local.length > 0
+      ? await syncMedicineBatch(local)
+      : await bootstrapSync();
+    const merged = mergeRemoteMedicines(readMedicineStore(), remote);
+    writeMedicineStore(merged);
+    return sortMedicines(merged.filter(isMedicineVisible));
+  } catch {
+    return listLocalMedicines();
   }
-
-  return listLocalMedicines();
 }

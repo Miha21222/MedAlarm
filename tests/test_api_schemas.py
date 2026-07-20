@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.api.schemas import MedicineCatalogSnapshot, SchedulePayload, SettingsPatch
+from app.api.schemas import MedicineCatalogSnapshot, ReminderConfigPatch, SchedulePayload
 
 
 def test_schedule_rejects_impossible_time():
@@ -19,10 +19,10 @@ def test_catalog_snapshot_accepts_long_official_composition():
     assert len(snapshot.active_ingredients or "") == 7000
 
 
-def test_settings_accept_only_supported_text_sizes():
-    assert SettingsPatch(text_size="large").text_size == "large"
+def test_reminder_config_rejects_ui_only_settings():
+    assert ReminderConfigPatch(timezone="Europe/Kyiv").timezone == "Europe/Kyiv"
     with pytest.raises(ValidationError):
-        SettingsPatch(text_size="huge")
+        ReminderConfigPatch(text_size="large")
 
 
 def test_schedule_rejects_invalid_weekday():

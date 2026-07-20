@@ -15,7 +15,7 @@ async def run() -> None:
     logging.basicConfig(level=getattr(logging, settings.log_level.upper(), logging.INFO))
     await init_db()
     bot, dispatcher = create_bot_and_dispatcher(settings)
-    await setup_bot_commands(bot)
+    await setup_bot_commands(bot, settings.mini_app_url)
     try:
         await dispatcher.start_polling(bot)
     finally:

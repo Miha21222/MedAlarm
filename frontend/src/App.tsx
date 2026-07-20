@@ -64,11 +64,9 @@ export default function App() {
     );
   }
 
-  const initialSettings = { ...readSettings(), ...auth.settings };
-
   return (
     <ToastProvider>
-      <AppSettingsProvider initialSettings={initialSettings}>
+      <AppSettingsProvider>
         <Layout>
           <Routes>
             <Route path="/" element={<DashboardPage />} />

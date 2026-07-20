@@ -1,20 +1,16 @@
 import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { saveSettings } from "../api/settings";
-import { useToast } from "./ToastContext";
-import { readSettings, writeSettings } from "../features/storage";
+import { saveReminderSettings } from "../api/settings";
 import {
   clearPendingSettingsIfCurrent,
   readPendingSettings,
+  reminderSettingsFrom,
   writePendingSettings,
 } from "../features/settingsSyncStorage";
+import { readSettings, writeSettings } from "../features/storage";
 import { translate, type TranslationKey } from "../i18n";
-import type { Language, UserSettings } from "../types";
+import type { Language, ReminderSettings, UserSettings } from "../types";
+import { useToast } from "./ToastContext";
 
-// Unlike PocketMind's client-only settings (which never sync directly and
-// instead get snapshotted into each task's sync payload), MedAlarm's settings
-// are server-owned and already synced directly via PATCH /settings/me — so
-// there's no analogous localSettings.ts snapshot concept to port here, just a
-// context wrapper around the existing read/write/save round trip.
 type AppSettingsContextValue = {
   settings: UserSettings;
   t: (key: TranslationKey) => string;
@@ -24,22 +20,22 @@ type AppSettingsContextValue = {
 
 const AppSettingsContext = createContext<AppSettingsContextValue | null>(null);
 
-export function AppSettingsProvider({
-  initialSettings,
-  children,
-}: PropsWithChildren<{ initialSettings?: UserSettings }>) {
-  const [settings, setSettings] = useState<UserSettings>(() => readPendingSettings() ?? initialSettings ?? readSettings());
+function sameReminderSettings(left: ReminderSettings, right: ReminderSettings): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+export function AppSettingsProvider({ children }: PropsWithChildren) {
+  // The browser owns app settings. The server receives only the projection it
+  // needs while the Mini App is closed to schedule and render reminders.
+  const [settings, setSettings] = useState<UserSettings>(() => readSettings());
   const { showToast } = useToast();
   const saveQueue = useRef<Promise<unknown>>(Promise.resolve());
-  const queuedInitialRetry = useRef(false);
+  const queuedInitialSync = useRef(false);
 
-  const enqueueSave = useCallback((next: UserSettings) => {
-    // Serialize full snapshots so a slower, older request cannot become the
-    // final server value after a newer settings change. The pending snapshot
-    // remains in localStorage until that exact version succeeds.
+  const enqueueSave = useCallback((next: ReminderSettings) => {
     saveQueue.current = saveQueue.current
       .catch(() => undefined)
-      .then(() => saveSettings(next))
+      .then(() => saveReminderSettings(next))
       .then(() => clearPendingSettingsIfCurrent(next))
       .catch(() => {
         showToast({ message: translate(next.language, "syncError"), tone: "error" });
@@ -47,18 +43,25 @@ export function AppSettingsProvider({
   }, [showToast]);
 
   useEffect(() => {
-    if (queuedInitialRetry.current) return;
-    queuedInitialRetry.current = true;
-    const pending = readPendingSettings();
-    if (pending) enqueueSave(pending);
+    if (queuedInitialSync.current) return;
+    queuedInitialSync.current = true;
+    const snapshot = readPendingSettings() ?? reminderSettingsFrom(readSettings());
+    writePendingSettings(snapshot);
+    enqueueSave(snapshot);
   }, [enqueueSave]);
 
   const value = useMemo<AppSettingsContextValue>(() => {
     const persist = (next: UserSettings) => {
+      const previousReminderSettings = reminderSettingsFrom(settings);
+      const nextReminderSettings = reminderSettingsFrom(next);
       setSettings(next);
       writeSettings(next);
-      writePendingSettings(next);
-      enqueueSave(next);
+
+      // Text size and other UI-only preferences never cross the network.
+      if (!sameReminderSettings(previousReminderSettings, nextReminderSettings)) {
+        writePendingSettings(nextReminderSettings);
+        enqueueSave(nextReminderSettings);
+      }
     };
 
     return {

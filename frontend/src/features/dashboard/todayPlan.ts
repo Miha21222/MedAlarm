@@ -1,4 +1,4 @@
-import type { Medicine, TodayItem } from "../../types";
+import type { Medicine, ReminderEventState, TodayItem } from "../../types";
 import { zonedDateTimeToUtcTimestamp, zonedDayKeyFromTimestamp } from "../../utils/dateTime";
 import { statusForToday } from "../medicines/localIntakeHistory";
 
@@ -10,6 +10,29 @@ function weekdayForDayKey(dayKey: string): number {
 
 function slotIsDue(daysOfWeek: string, weekday: number): boolean {
   return daysOfWeek === "*" || daysOfWeek.split(",").map((day) => day.trim()).includes(String(weekday));
+}
+
+function localDoseKey(item: TodayItem): string {
+  const slot = item.schedules[0];
+  return `${item.client_medicine_id}:${slot?.time ?? ""}:${slot?.days_of_week ?? "*"}`;
+}
+
+function reminderEventKey(item: ReminderEventState): string {
+  return `${item.client_medicine_id}:${item.time}:${item.days_of_week}`;
+}
+
+export function mergeReminderState(local: TodayItem[], remote: ReminderEventState[]): TodayItem[] {
+  const remoteByDose = new Map(remote.map((item) => [reminderEventKey(item), item]));
+  return local.map((item) => {
+    const serverEvent = remoteByDose.get(localDoseKey(item));
+    if (!serverEvent) return { ...item, event_id: null, actionable: false };
+    return {
+      ...item,
+      status: serverEvent.status,
+      event_id: serverEvent.event_id,
+      actionable: serverEvent.actionable,
+    };
+  });
 }
 
 export function buildTodayPlan(

@@ -16,7 +16,7 @@ from app.api.schemas import (
     MedicinePayload,
     FeedbackCreate,
     ReminderActionPayload,
-    SettingsPatch,
+    ReminderConfigPatch,
     TelegramAuthRequest,
 )
 from app.config import load_settings
@@ -150,12 +150,26 @@ def _serialize_user(user: User) -> dict[str, object]:
         "username": user.username,
         "first_name": user.first_name,
         "last_name": user.last_name,
+    }
+
+
+def _serialize_reminder_config(user: User) -> dict[str, object]:
+    return {
         "language": user.language,
-        "text_size": user.text_size,
         "timezone": user.timezone,
         "default_snooze_minutes": user.default_snooze_minutes,
         "remind_until_confirmed": user.remind_until_confirmed,
     }
+
+
+async def _user_medicine_snapshot(session: AsyncSession, user_id: int) -> list[Medicine]:
+    result = await session.execute(
+        select(Medicine)
+        .where(Medicine.user_id == user_id)
+        .options(selectinload(Medicine.schedules))
+        .order_by(Medicine.updated_at.asc())
+    )
+    return list(result.scalars())
 
 
 @router.get("/sync/bootstrap")
@@ -163,14 +177,9 @@ async def sync_bootstrap(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, object]:
-    result = await session.execute(
-        select(Medicine)
-        .where(Medicine.user_id == user.id)
-        .options(selectinload(Medicine.schedules))
-        .order_by(Medicine.updated_at.asc())
-    )
+    medicines = await _user_medicine_snapshot(session, user.id)
     return {
-        "medicines": [_serialize_medicine(item) for item in result.scalars()],
+        "medicines": [_serialize_medicine(item) for item in medicines],
         "server_time": datetime.now(UTC),
     }
 
@@ -194,32 +203,34 @@ async def sync_batch(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, object]:
-    items = []
     for item in payload.medicines:
-        applied, medicine = await MedicineSyncService.apply(session, user, _sync_payload(item))
-        items.append({"applied": applied, "medicine": _serialize_medicine(medicine)})
-    return {"items": items, "server_time": datetime.now(UTC)}
+        await MedicineSyncService.apply(session, user, _sync_payload(item))
+
+    # Match PocketMind's proven bootstrap contract: a batch push returns the
+    # complete account snapshot, not merely the submitted rows. Every device
+    # can therefore merge one authoritative response into its local cache.
+    medicines = await _user_medicine_snapshot(session, user.id)
+    return {
+        "medicines": [_serialize_medicine(item) for item in medicines],
+        "server_time": datetime.now(UTC),
+    }
 
 
-@router.get("/settings/me")
-async def get_settings(user: User = Depends(get_current_user)) -> dict[str, object]:
-    return _serialize_user(user)
-
-
-@router.patch("/settings/me")
-async def patch_settings(
-    payload: SettingsPatch,
+@router.patch("/reminders/config")
+async def patch_reminder_config(
+    payload: ReminderConfigPatch,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, object]:
+    # This is a runtime projection, not a server-owned app-settings record.
+    # The browser remains authoritative and retries the complete reminder
+    # snapshot after reconnecting.
     if payload.timezone is not None:
         if not validate_timezone(payload.timezone):
             raise HTTPException(status_code=422, detail="Invalid IANA timezone")
         user.timezone = payload.timezone
     if payload.language is not None:
         user.language = payload.language
-    if payload.text_size is not None:
-        user.text_size = payload.text_size
     if payload.default_snooze_minutes is not None:
         updated_user = await UserService.update_snooze_minutes(
             session, user.telegram_id, payload.default_snooze_minutes
@@ -227,8 +238,12 @@ async def patch_settings(
         if updated_user is not None:
             user = updated_user
     if payload.remind_until_confirmed is not None:
-        user.remind_until_confirmed = payload.remind_until_confirmed
-    return _serialize_user(user)
+        updated_user = await UserService.update_repeat_mode(
+            session, user.telegram_id, payload.remind_until_confirmed
+        )
+        if updated_user is not None:
+            user = updated_user
+    return _serialize_reminder_config(user)
 
 
 @router.get("/dashboard/today")
@@ -241,16 +256,9 @@ async def dashboard_today(
     return {
         "items": [
             {
-                **_serialize_medicine(dose.medicine),
-                "dose_key": f"{dose.medicine.client_medicine_id}:{dose.schedule.id}:{local_date.isoformat()}",
-                "schedules": [
-                    {
-                        "time": dose.schedule.time,
-                        "days_of_week": dose.schedule.days_of_week,
-                        "snooze_minutes": dose.schedule.snooze_minutes,
-                        "remind_until_confirmed": dose.schedule.remind_until_confirmed,
-                    }
-                ],
+                "client_medicine_id": dose.medicine.client_medicine_id,
+                "time": dose.schedule.time,
+                "days_of_week": dose.schedule.days_of_week,
                 "scheduled_at": dose.scheduled_at,
                 "status": dose.status,
                 "event_id": dose.event_id,

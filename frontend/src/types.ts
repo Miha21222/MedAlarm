@@ -42,12 +42,25 @@ export interface Medicine {
   syncState?: "synced" | "pending" | "error";
 }
 
-export interface UserSettings {
+export interface ReminderSettings {
   language: Language;
-  text_size: TextSize;
   timezone: string;
   default_snooze_minutes: number;
   remind_until_confirmed: boolean;
+}
+
+export interface UserSettings extends ReminderSettings {
+  text_size: TextSize;
+}
+
+export interface ReminderEventState {
+  client_medicine_id: string;
+  time: string;
+  days_of_week: string;
+  status: DoseStatus;
+  scheduled_at: string;
+  event_id: string | null;
+  actionable: boolean;
 }
 
 export interface TodayItem extends Medicine {

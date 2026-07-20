@@ -8,6 +8,7 @@ import { SectionHeader } from "../components/SectionHeader";
 import { useAppSettings } from "../contexts/AppSettingsContext";
 import { useToast } from "../contexts/ToastContext";
 import { useDemoModeEnabled } from "../features/demo/demoMode";
+import { buildTodayPlan } from "../features/dashboard/todayPlan";
 import { useMedicinesAllQuery } from "../features/medicines/cache";
 import { sortMedicines } from "../features/medicines/localMedicines";
 import type { DoseStatus, Medicine, TodayItem } from "../types";
@@ -27,6 +28,7 @@ export function DashboardPage() {
 
   useEffect(() => {
     let active = true;
+    setToday(buildTodayPlan(medicines, settings.timezone));
     void fetchToday(medicines, settings.timezone)
       .then((items) => {
         if (active) setToday(items);

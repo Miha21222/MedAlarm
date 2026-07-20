@@ -1,4 +1,4 @@
-import { buildTodayPlan } from "../src/features/dashboard/todayPlan";
+import { buildTodayPlan, mergeReminderState } from "../src/features/dashboard/todayPlan";
 import type { Medicine } from "../src/types";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -56,6 +56,30 @@ assert(plan.find((item) => item.dose_key.endsWith("09:00"))?.scheduled_at === "2
 assert(plan.find((item) => item.dose_key.endsWith("09:00"))?.status === "taken", "each local dose picks up its matching action status");
 assert(plan.find((item) => item.dose_key.endsWith("21:00"))?.status === "pending", "other slots remain independent and pending");
 assert(new Set(plan.map((item) => item.dose_key)).size === plan.length, "multiple daily slots have independent stable keys");
+
+const localNine = plan.find((item) => item.dose_key.endsWith("09:00"));
+assert(localNine, "the local plan should contain the morning dose");
+const morningEvent = {
+  client_medicine_id: localNine.client_medicine_id,
+  time: localNine.schedules[0].time,
+  days_of_week: localNine.schedules[0].days_of_week,
+  status: "pending" as const,
+  scheduled_at: localNine.scheduled_at,
+  event_id: "dispatch-1",
+  actionable: true,
+};
+const merged = mergeReminderState(plan, [
+  morningEvent,
+  { ...morningEvent, client_medicine_id: "server-only", event_id: "dispatch-server-only" },
+]);
+const mergedNine = merged.find((item) => item.dose_key.endsWith("09:00"));
+assert(mergedNine?.name === "Tuesday", "server dispatch state must not overwrite local medicine content");
+assert(mergedNine?.event_id === "dispatch-1" && mergedNine.actionable, "matching server dispatch state enables real actions");
+assert(!merged.some((item) => item.client_medicine_id === "server-only"), "server-only medicines must not enter the local dashboard");
+assert(
+  merged.find((item) => item.dose_key.endsWith("21:00"))?.actionable === false,
+  "a local dose without a real dispatch must not expose server actions",
+);
 
 const creationTime = new Date("2026-07-07T12:00:30.000Z"); // 15:00 in Kyiv
 const newlyCreated = medicine({

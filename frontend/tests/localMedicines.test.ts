@@ -103,6 +103,10 @@ assert(
   "mergeRemoteMedicineIntoLocal should mark the winning remote record synced",
 );
 assert(
+  mergeRemoteMedicineIntoLocal({ ...medicine, syncState: "pending" }, medicine).syncState === "synced",
+  "an equal server snapshot should settle a local record",
+);
+assert(
   mergeRemoteMedicineIntoLocal(undefined, medicine).client_medicine_id === medicine.client_medicine_id,
   "mergeRemoteMedicineIntoLocal should adopt a remote-only record",
 );
@@ -141,5 +145,12 @@ assert(
 );
 activateMedicineStore(2002, accountStorage);
 assert(readMedicineStore(accountStorage).length === 0, "another Telegram account must not inherit device records");
+const secondLegacyMedicine = { ...medicine, client_medicine_id: "legacy-second-device" };
+accountStorageMemory.set("medalarm.medicines.v1", JSON.stringify([medicine, secondLegacyMedicine]));
+activateMedicineStore(1001, accountStorage);
+assert(
+  readMedicineStore(accountStorage).some((item) => item.client_medicine_id === "legacy-second-device"),
+  "the legacy owner should recover records left in the original device store",
+);
 
 console.log("localMedicines tests passed");

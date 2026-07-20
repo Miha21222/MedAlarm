@@ -1,12 +1,9 @@
 import { useEffect, useState } from "react";
 import { authenticate } from "../api/auth";
-import type { UserSettings } from "../types";
-
 interface AuthState {
   loading: boolean;
   error: string | null;
   authenticated: boolean;
-  settings: UserSettings | null;
 }
 
 // MedAlarm's authenticate() already handles both the local-preview bypass
@@ -19,7 +16,6 @@ export function useTelegramAuth(): AuthState & { retry: () => void } {
     loading: true,
     error: null,
     authenticated: false,
-    settings: null,
   });
 
   useEffect(() => {
@@ -27,16 +23,15 @@ export function useTelegramAuth(): AuthState & { retry: () => void } {
     setState((prev) => ({ ...prev, loading: true, error: null }));
     const init = async () => {
       try {
-        const settings = await authenticate();
+        await authenticate();
         if (!cancelled) {
-          setState({ loading: false, error: null, authenticated: true, settings });
+          setState({ loading: false, error: null, authenticated: true });
         }
       } catch (error) {
         if (!cancelled) {
           setState({
             loading: false,
             authenticated: false,
-            settings: null,
             error: error instanceof Error ? error.message : "Authentication failed",
           });
         }

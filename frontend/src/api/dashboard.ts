@@ -1,11 +1,18 @@
-import type { Medicine, TodayItem } from "../types";
-import { buildTodayPlan } from "../features/dashboard/todayPlan";
+import { buildTodayPlan, mergeReminderState } from "../features/dashboard/todayPlan";
+import type { Medicine, ReminderEventState, TodayItem } from "../types";
 import { apiRequest, hasAuthToken } from "./client";
 
-// Unauthenticated (local-preview) fallback: derive "today" from local schedules
-// by day-of-week instead of calling the server-authoritative endpoint.
+// The plan always comes from the local medicine store. The server contributes
+// only reminder dispatch state, which is required to expose real Taken/Skipped
+// actions tied to an event that was actually sent.
 export async function fetchToday(local: Medicine[], timezone = "UTC"): Promise<TodayItem[]> {
-  if (!hasAuthToken()) return buildTodayPlan(local, timezone);
-  const result = await apiRequest<{ items: TodayItem[] }>("/dashboard/today");
-  return result.items;
+  const plan = buildTodayPlan(local, timezone);
+  if (!hasAuthToken()) return plan;
+
+  try {
+    const result = await apiRequest<{ items: ReminderEventState[] }>("/dashboard/today");
+    return mergeReminderState(plan, result.items);
+  } catch {
+    return plan.map((item) => ({ ...item, event_id: null, actionable: false }));
+  }
 }

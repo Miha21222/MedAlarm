@@ -25,7 +25,7 @@ async def run() -> None:
     set_scheduler(reminder_scheduler)
 
     try:
-        await setup_bot_commands(bot)
+        await setup_bot_commands(bot, settings.mini_app_url)
         await reminder_scheduler.start(bot)
         await dp.start_polling(bot)
     finally:

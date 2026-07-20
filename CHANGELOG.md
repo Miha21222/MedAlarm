@@ -16,6 +16,11 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Made browser storage authoritative for medicines, app settings, and the
+  dashboard plan. The backend now receives only medicine snapshots and the
+  language/timezone/snooze/repeat projection required for reminders; UI-only
+  settings no longer cross the network, and server dashboard data overlays
+  dispatch state without replacing local medicine content.
 - History periods now use the user's current calendar day, Monday-to-Sunday
   week, and calendar month instead of rolling 24-hour, 7-day, and 30-day
   windows.

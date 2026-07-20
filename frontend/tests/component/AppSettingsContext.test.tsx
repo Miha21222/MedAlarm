@@ -2,13 +2,14 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppSettingsProvider, useAppSettings } from "../../src/contexts/AppSettingsContext";
 import { ToastProvider } from "../../src/contexts/ToastContext";
-import { PENDING_SETTINGS_KEY } from "../../src/features/settingsSyncStorage";
-import type { UserSettings } from "../../src/types";
+import { PENDING_SETTINGS_KEY, reminderSettingsFrom } from "../../src/features/settingsSyncStorage";
+import { SETTINGS_KEY } from "../../src/features/storage";
+import type { ReminderSettings, UserSettings } from "../../src/types";
 
-const { saveSettings } = vi.hoisted(() => ({
-  saveSettings: vi.fn<(settings: UserSettings) => Promise<void>>(),
+const { saveReminderSettings } = vi.hoisted(() => ({
+  saveReminderSettings: vi.fn<(settings: ReminderSettings) => Promise<void>>(),
 }));
-vi.mock("../../src/api/settings", () => ({ saveSettings }));
+vi.mock("../../src/api/settings", () => ({ saveReminderSettings }));
 
 const initial: UserSettings = {
   language: "ru",
@@ -21,16 +22,22 @@ const initial: UserSettings = {
 function SettingsProbe() {
   const { settings, updateSettings } = useAppSettings();
   return (
-    <button type="button" onClick={() => updateSettings({ text_size: "large" })}>
-      {settings.text_size}
-    </button>
+    <>
+      <button type="button" onClick={() => updateSettings({ text_size: "large" })}>
+        size:{settings.text_size}
+      </button>
+      <button type="button" onClick={() => updateSettings({ timezone: "UTC" })}>
+        timezone:{settings.timezone}
+      </button>
+    </>
   );
 }
 
 function renderSettings() {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(initial));
   return render(
     <ToastProvider>
-      <AppSettingsProvider initialSettings={initial}>
+      <AppSettingsProvider>
         <SettingsProbe />
       </AppSettingsProvider>
     </ToastProvider>,
@@ -40,29 +47,45 @@ function renderSettings() {
 describe("AppSettingsProvider", () => {
   beforeEach(() => {
     localStorage.clear();
-    saveSettings.mockReset();
+    saveReminderSettings.mockReset();
   });
 
-  it("retries a persisted settings snapshot after reload and clears it on success", async () => {
-    const pending = { ...initial, text_size: "large" as const };
+  it("retries a persisted reminder projection without replacing local app settings", async () => {
+    const pending = { ...reminderSettingsFrom(initial), timezone: "Europe/Warsaw" };
     localStorage.setItem(PENDING_SETTINGS_KEY, JSON.stringify(pending));
-    saveSettings.mockResolvedValue();
+    saveReminderSettings.mockResolvedValue();
 
     renderSettings();
 
-    expect(screen.getByRole("button")).toHaveTextContent("large");
-    await waitFor(() => expect(saveSettings).toHaveBeenCalledWith(pending));
+    expect(screen.getByText("size:regular")).toBeInTheDocument();
+    expect(screen.getByText("timezone:Europe/Kyiv")).toBeInTheDocument();
+    await waitFor(() => expect(saveReminderSettings).toHaveBeenCalledWith(pending));
     await waitFor(() => expect(localStorage.getItem(PENDING_SETTINGS_KEY)).toBeNull());
   });
 
-  it("keeps a failed update queued while updating the UI immediately", async () => {
-    saveSettings.mockRejectedValue(new Error("offline"));
+  it("keeps UI-only settings local and never sends them in the reminder projection", async () => {
+    saveReminderSettings.mockResolvedValue();
     renderSettings();
+    await waitFor(() => expect(saveReminderSettings).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(screen.getByRole("button"));
+    fireEvent.click(screen.getByText("size:regular"));
 
-    expect(screen.getByRole("button")).toHaveTextContent("large");
-    await waitFor(() => expect(saveSettings).toHaveBeenCalledTimes(1));
-    expect(JSON.parse(localStorage.getItem(PENDING_SETTINGS_KEY) ?? "null").text_size).toBe("large");
+    expect(screen.getByText("size:large")).toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "null").text_size).toBe("large");
+    expect(saveReminderSettings).toHaveBeenCalledTimes(1);
+    expect(saveReminderSettings.mock.calls[0][0]).not.toHaveProperty("text_size");
+  });
+
+  it("keeps a failed reminder-setting update queued while updating local UI immediately", async () => {
+    saveReminderSettings.mockResolvedValueOnce();
+    renderSettings();
+    await waitFor(() => expect(saveReminderSettings).toHaveBeenCalledTimes(1));
+    saveReminderSettings.mockRejectedValueOnce(new Error("offline"));
+
+    fireEvent.click(screen.getByText("timezone:Europe/Kyiv"));
+
+    expect(screen.getByText("timezone:UTC")).toBeInTheDocument();
+    await waitFor(() => expect(saveReminderSettings).toHaveBeenCalledTimes(2));
+    expect(JSON.parse(localStorage.getItem(PENDING_SETTINGS_KEY) ?? "null").timezone).toBe("UTC");
   });
 });

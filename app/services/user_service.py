@@ -73,5 +73,14 @@ class UserService:
         if user is None:
             return None
         user.remind_until_confirmed = remind_until_confirmed
+        await session.execute(
+            update(MedicineSchedule)
+            .where(
+                MedicineSchedule.medicine_id.in_(
+                    select(Medicine.id).where(Medicine.user_id == user.id)
+                )
+            )
+            .values(remind_until_confirmed=remind_until_confirmed)
+        )
         return user
 

@@ -68,12 +68,17 @@ export function activateMedicineStore(
 ): void {
   const owner = String(telegramId);
   const accountKey = medicineStorageKeyForTelegramUser(telegramId);
-  if (storage.getItem(STORAGE_OWNER_KEY) === null) {
-    if (storage.getItem(accountKey) === null) {
-      const legacy = storage.getItem(STORAGE_KEY);
-      if (legacy !== null) storage.setItem(accountKey, legacy);
-    }
-    storage.setItem(STORAGE_OWNER_KEY, owner);
+  const legacyOwner = storage.getItem(STORAGE_OWNER_KEY);
+  if (legacyOwner === null) storage.setItem(STORAGE_OWNER_KEY, owner);
+
+  // A previous release could leave records split between the original device
+  // key and the new account key. The Telegram account that claimed the legacy
+  // key may safely merge it on every startup; another account must not inherit
+  // those records on a shared browser.
+  if (legacyOwner === null || legacyOwner === owner) {
+    const accountMedicines = readMedicineStoreAtKey(storage, accountKey);
+    const legacyMedicines = readMedicineStoreAtKey(storage, STORAGE_KEY);
+    storage.setItem(accountKey, JSON.stringify(mergeRemoteMedicines(accountMedicines, legacyMedicines)));
   }
   activeStorageKey = accountKey;
 }
@@ -83,9 +88,9 @@ function nextTimestamp(previous: string): string {
   return new Date(Math.max(Date.now(), Number.isFinite(parsed) ? parsed + 1 : 0)).toISOString();
 }
 
-export function readMedicineStore(storage: Pick<Storage, "getItem"> = localStorage): Medicine[] {
+function readMedicineStoreAtKey(storage: Pick<Storage, "getItem">, key: string): Medicine[] {
   try {
-    const parsed: unknown = JSON.parse(storage.getItem(activeStorageKey) ?? "[]");
+    const parsed: unknown = JSON.parse(storage.getItem(key) ?? "[]");
     if (!Array.isArray(parsed)) return [];
     return parsed.flatMap((item) => {
       const result = medicineSchema.safeParse(item);
@@ -94,6 +99,10 @@ export function readMedicineStore(storage: Pick<Storage, "getItem"> = localStora
   } catch {
     return [];
   }
+}
+
+export function readMedicineStore(storage: Pick<Storage, "getItem"> = localStorage): Medicine[] {
+  return readMedicineStoreAtKey(storage, activeStorageKey);
 }
 
 export function writeMedicineStore(medicines: Medicine[], storage: Pick<Storage, "setItem"> = localStorage): void {
@@ -144,7 +153,7 @@ export function deleteMedicine(medicine: Medicine): Medicine {
 }
 
 export function mergeRemoteMedicineIntoLocal(local: Medicine | undefined, remote: Medicine): Medicine {
-  if (!local || Date.parse(remote.updated_at) > Date.parse(local.updated_at)) {
+  if (!local || Date.parse(remote.updated_at) >= Date.parse(local.updated_at)) {
     return { ...remote, syncState: "synced" };
   }
   return local;
