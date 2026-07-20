@@ -7,10 +7,14 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-07-20
+
 ### Added
 
 - Added a Settings version panel that independently reports the frontend build
   and backend runtime versions and highlights incomplete deployments.
+- Added the public, no-cache `GET /api/v1/version` endpoint. Both independently
+  deployed artifacts derive their displayed version from `frontend/package.json`.
 
 ## [2.0.0] - 2026-07-20
 
@@ -215,7 +219,8 @@ from; earlier bot-only history exists as untagged commits on `main`.
 - Added tagged VPS release, SQLite backup, restore, rollback, and operational
   verification scripts under `deploy/`.
 
-[Unreleased]: https://github.com/Miha21222/MedAlarm/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/Miha21222/MedAlarm/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/Miha21222/MedAlarm/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/Miha21222/MedAlarm/compare/v1.3.0...v2.0.0
 [1.3.0]: https://github.com/Miha21222/MedAlarm/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/Miha21222/MedAlarm/compare/v1.1.1...v1.2.0
