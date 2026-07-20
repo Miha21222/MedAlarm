@@ -49,6 +49,34 @@ const medicineSchema = z.object({
 });
 
 export const STORAGE_KEY = "medalarm.medicines.v1";
+const STORAGE_OWNER_KEY = "medalarm.medicines.v1.owner";
+let activeStorageKey = STORAGE_KEY;
+
+type MedicineStorage = Pick<Storage, "getItem" | "setItem">;
+
+export function medicineStorageKeyForTelegramUser(telegramId: number): string {
+  return `medalarm.medicines.v2.telegram-${telegramId}`;
+}
+
+// Bind local caching to the authenticated Telegram account. The one-time
+// legacy claim preserves records created before account-scoped storage while
+// preventing another Telegram account on the same browser from inheriting
+// them.
+export function activateMedicineStore(
+  telegramId: number,
+  storage: MedicineStorage = localStorage,
+): void {
+  const owner = String(telegramId);
+  const accountKey = medicineStorageKeyForTelegramUser(telegramId);
+  if (storage.getItem(STORAGE_OWNER_KEY) === null) {
+    if (storage.getItem(accountKey) === null) {
+      const legacy = storage.getItem(STORAGE_KEY);
+      if (legacy !== null) storage.setItem(accountKey, legacy);
+    }
+    storage.setItem(STORAGE_OWNER_KEY, owner);
+  }
+  activeStorageKey = accountKey;
+}
 
 function nextTimestamp(previous: string): string {
   const parsed = Date.parse(previous);
@@ -57,7 +85,7 @@ function nextTimestamp(previous: string): string {
 
 export function readMedicineStore(storage: Pick<Storage, "getItem"> = localStorage): Medicine[] {
   try {
-    const parsed: unknown = JSON.parse(storage.getItem(STORAGE_KEY) ?? "[]");
+    const parsed: unknown = JSON.parse(storage.getItem(activeStorageKey) ?? "[]");
     if (!Array.isArray(parsed)) return [];
     return parsed.flatMap((item) => {
       const result = medicineSchema.safeParse(item);
@@ -69,7 +97,7 @@ export function readMedicineStore(storage: Pick<Storage, "getItem"> = localStora
 }
 
 export function writeMedicineStore(medicines: Medicine[], storage: Pick<Storage, "setItem"> = localStorage): void {
-  storage.setItem(STORAGE_KEY, JSON.stringify(medicines));
+  storage.setItem(activeStorageKey, JSON.stringify(medicines));
 }
 
 export function createMedicine(

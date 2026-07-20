@@ -86,7 +86,16 @@ export async function bootstrapMedicineSync(): Promise<Medicine[]> {
   if (!hasAuthToken()) return listLocalMedicines();
 
   const remote = await bootstrapSync();
-  const merged = mergeRemoteMedicines(readMedicineStore(), remote);
+  const remoteIds = new Set(remote.map((medicine) => medicine.client_medicine_id));
+  // Legacy installs could label a record "synced" even though it only existed
+  // in that device's localStorage. Preserve and upload such records before the
+  // server becomes the universal Telegram-account source for every device.
+  const local = readMedicineStore().map((medicine) =>
+    remoteIds.has(medicine.client_medicine_id)
+      ? medicine
+      : { ...medicine, syncState: "pending" as const },
+  );
+  const merged = mergeRemoteMedicines(local, remote);
   writeMedicineStore(merged);
 
   const pending = merged.filter((medicine) => medicine.syncState === "pending" || medicine.syncState === "error");

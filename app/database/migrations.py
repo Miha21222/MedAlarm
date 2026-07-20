@@ -65,6 +65,22 @@ async def ensure_sqlite_compatibility(connection: AsyncConnection) -> None:
     await connection.execute(
         text("UPDATE medicines SET updated_at = CURRENT_TIMESTAMP WHERE updated_at IS NULL")
     )
+    # Account settings are authoritative for snooze duration. Normalize rows
+    # created by older releases without recreating schedules, medicines, or
+    # historical dispatch links.
+    if "snooze_minutes" in await _columns(connection, "medicine_schedules"):
+        await connection.execute(
+            text(
+                "UPDATE medicine_schedules SET snooze_minutes = ("
+                "SELECT users.default_snooze_minutes FROM medicines "
+                "JOIN users ON users.id = medicines.user_id "
+                "WHERE medicines.id = medicine_schedules.medicine_id"
+                ") WHERE EXISTS (SELECT 1 FROM medicines "
+                "JOIN users ON users.id = medicines.user_id "
+                "WHERE medicines.id = medicine_schedules.medicine_id "
+                "AND users.default_snooze_minutes IS NOT NULL)"
+            )
+        )
     medicine_rows = await connection.execute(
         text("SELECT id FROM medicines WHERE client_medicine_id IS NULL")
     )

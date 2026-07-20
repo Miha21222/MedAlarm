@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database.models import User
+from app.database.models import Medicine, MedicineSchedule, User
 
 
 class UserService:
@@ -52,6 +52,19 @@ class UserService:
         if user is None:
             return None
         user.default_snooze_minutes = minutes
+        # Snooze is an account preference, not a medicine/device snapshot.
+        # Keep legacy schedule rows aligned so existing medicines and API
+        # responses immediately reflect the new default without losing IDs or
+        # their linked reminder history.
+        await session.execute(
+            update(MedicineSchedule)
+            .where(
+                MedicineSchedule.medicine_id.in_(
+                    select(Medicine.id).where(Medicine.user_id == user.id)
+                )
+            )
+            .values(snooze_minutes=minutes)
+        )
         return user
 
     @staticmethod

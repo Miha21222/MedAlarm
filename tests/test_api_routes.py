@@ -27,6 +27,12 @@ async def test_settings_routes_patch_and_validate(db_session):
     user = User(telegram_id=51001, timezone="UTC")
     db_session.add(user)
     await db_session.flush()
+    medicine = Medicine(user_id=user.id, name="Existing", dosage_text="1")
+    medicine.schedules = [
+        MedicineSchedule(time="09:00", days_of_week="*", snooze_minutes=10)
+    ]
+    db_session.add(medicine)
+    await db_session.flush()
     client = await _authenticated_client(db_session, user)
     try:
         current = await client.get("/api/v1/settings/me")
@@ -44,6 +50,7 @@ async def test_settings_routes_patch_and_validate(db_session):
     assert updated.json()["language"] == "uk"
     assert updated.json()["text_size"] == "large"
     assert user.default_snooze_minutes == 20
+    assert medicine.schedules[0].snooze_minutes == 20
     assert invalid.status_code == 422
 
 

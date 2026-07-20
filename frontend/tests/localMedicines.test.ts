@@ -1,4 +1,5 @@
 import {
+  activateMedicineStore,
   createMedicine,
   deleteMedicine,
   mergeRemoteMedicineIntoLocal,
@@ -7,6 +8,7 @@ import {
   settleMedicineSync,
   updateMedicine,
   writeMedicineStore,
+  medicineStorageKeyForTelegramUser,
 } from "../src/features/medicines/localMedicines";
 import type { Medicine } from "../src/types";
 
@@ -123,5 +125,21 @@ assert(
   settleMedicineSync(updated, updated, updated).syncState === "synced",
   "the matching server response should settle the requested edit",
 );
+
+const accountStorageMemory = new Map<string, string>();
+const accountStorage = {
+  getItem: (key: string) => accountStorageMemory.get(key) ?? null,
+  setItem: (key: string, value: string) => void accountStorageMemory.set(key, value),
+};
+accountStorageMemory.set("medalarm.medicines.v1", JSON.stringify([medicine]));
+activateMedicineStore(1001, accountStorage);
+assert(readMedicineStore(accountStorage).length === 1, "the first Telegram account should retain legacy records");
+writeMedicineStore([newer], accountStorage);
+assert(
+  accountStorageMemory.get(medicineStorageKeyForTelegramUser(1001))?.includes("Vitamin D3"),
+  "medicine writes should use the Telegram-account store",
+);
+activateMedicineStore(2002, accountStorage);
+assert(readMedicineStore(accountStorage).length === 0, "another Telegram account must not inherit device records");
 
 console.log("localMedicines tests passed");

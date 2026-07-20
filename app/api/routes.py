@@ -210,6 +210,7 @@ async def get_settings(user: User = Depends(get_current_user)) -> dict[str, obje
 async def patch_settings(
     payload: SettingsPatch,
     user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ) -> dict[str, object]:
     if payload.timezone is not None:
         if not validate_timezone(payload.timezone):
@@ -220,7 +221,11 @@ async def patch_settings(
     if payload.text_size is not None:
         user.text_size = payload.text_size
     if payload.default_snooze_minutes is not None:
-        user.default_snooze_minutes = payload.default_snooze_minutes
+        updated_user = await UserService.update_snooze_minutes(
+            session, user.telegram_id, payload.default_snooze_minutes
+        )
+        if updated_user is not None:
+            user = updated_user
     if payload.remind_until_confirmed is not None:
         user.remind_until_confirmed = payload.remind_until_confirmed
     return _serialize_user(user)

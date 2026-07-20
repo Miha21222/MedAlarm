@@ -39,7 +39,7 @@ async def test_send_reminder_sends_message_without_lazy_loading_error(monkeypatc
         await conn.run_sync(Base.metadata.create_all)
 
     async with session_factory() as session:
-        user = User(telegram_id=555001, timezone="UTC")
+        user = User(telegram_id=555001, timezone="UTC", default_snooze_minutes=12)
         session.add(user)
         await session.flush()
         medicine = Medicine(user_id=user.id, name="РњР°РіРЅРёР№", dosage_text="1 С‚Р°Р±Р»РµС‚РєР°", is_active=True)
@@ -96,7 +96,7 @@ async def test_send_reminder_sends_message_without_lazy_loading_error(monkeypatc
     assert bot.messages[0]["text"]
     assert "15:27" in bot.messages[0]["text"]
     snooze_button = bot.messages[0]["reply_markup"].inline_keyboard[1][0]
-    assert snooze_button.text == "⏰ Напомнить через 25 минут"
+    assert snooze_button.text == "⏰ Напомнить через 12 минут"
 
     await engine.dispose()
 
@@ -109,7 +109,7 @@ async def test_snooze_is_restored_and_cleared_after_delivery(monkeypatch):
         await conn.run_sync(Base.metadata.create_all)
 
     async with session_factory() as session:
-        user = User(telegram_id=555002, timezone="UTC")
+        user = User(telegram_id=555002, timezone="UTC", default_snooze_minutes=18)
         session.add(user)
         await session.flush()
         medicine = Medicine(user_id=user.id, name="D3", dosage_text="1", is_active=True)
@@ -167,5 +167,5 @@ async def test_snooze_is_restored_and_cleared_after_delivery(monkeypatch):
     assert scheduler._bot.edits[0]["message_id"] == 42
     assert scheduler._bot.edits[0]["reply_markup"] is not None
     snooze_button = scheduler._bot.edits[0]["reply_markup"].inline_keyboard[1][0]
-    assert snooze_button.text == "⏰ Напомнить через 35 минут"
+    assert snooze_button.text == "⏰ Напомнить через 18 минут"
     await engine.dispose()
