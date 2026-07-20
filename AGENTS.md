@@ -26,13 +26,13 @@ medical advice, dosage recommendations, or treatment changes.
 
 ## Architecture Map
 
-### Current checkout snapshot (verified 2026-07-10)
+### Current checkout snapshot (verified 2026-07-20)
 
-- Active branch: `feat-fullstack-mini-app`; `HEAD` is `28f4760`, with the
-  visible `main`/`origin/main` base at `c124aa7`.
-- This is an intentionally dirty feature checkout. At this snapshot it has 45
-  tracked changes and 29 untracked paths across backend, frontend, deployment,
-  CI, and tests. Inspect overlapping diffs, preserve unrelated work, and never
+- Active branch: `stage`; `HEAD`/`origin/stage` is `def7e60`, with local
+  `main` at `7333a6d` and `origin/main` at `126e888`.
+- This is an intentionally dirty feature checkout. At this snapshot it has 31
+  tracked changes and one untracked test path across backend, frontend, docs,
+  and tests. Inspect overlapping diffs, preserve unrelated work, and never
   reset the tree merely to make it clean.
 - Windows sandbox ownership can make Git report a dubious repository. Use a
   one-shot command such as
@@ -84,7 +84,7 @@ medical advice, dosage recommendations, or treatment changes.
   local dev; not used by Docker.
 - `app/api/`: FastAPI backend for the Mini App (`main.py` app + CORS,
   `routes.py` prefix `/api/v1` — public catalogue status/search, auth, sync,
-  settings, dashboard, history, reminder actions, `auth.py` Telegram initData
+  reminder configuration, dashboard, history, reminder actions, `auth.py` Telegram initData
   validation + bearer tokens,
   `schemas.py`, `dependencies.py`).
 - `app/runtime.py`: Docker entrypoint supervising two subprocesses (the API
@@ -98,8 +98,12 @@ medical advice, dosage recommendations, or treatment changes.
 - Current frontend routes are dashboard, medicine list/create/detail/edit,
   history, settings, rating feedback, and bug reporting. Medicine creation
   supports manual entry or selection from the locally imported MOH catalogue;
-  intake amount and schedule always remain user-entered. The dashboard exposes Taken/Skipped actions only for
-  unresolved server dispatch events. `src/features/demo/` provides isolated
+  intake amount and schedule always remain user-entered. App settings and the
+  dashboard plan are local-authoritative; only the reminder-relevant settings
+  projection is sent to `PATCH /reminders/config`, and server dashboard data
+  overlays dispatch status without replacing local medicine content. The
+  dashboard exposes Taken/Skipped actions only for unresolved server dispatch
+  events. `src/features/demo/` provides isolated
   preview state; demo actions use a separate history storage key and never
   alter real history. `src/features/history/` provides period/status filters,
   day/medicine grouping, and summaries. Medicine drafts are autosaved per form
@@ -116,8 +120,8 @@ medical advice, dosage recommendations, or treatment changes.
   server and supports idempotent local/demo fallback. Real adherence must stay
   tied to `ReminderDispatchLog.event_id`.
 - `tests/`: pytest and pytest-asyncio tests using in-memory SQLite.
-  `frontend/tests/`: plain-TypeScript tests (no framework) for pure-logic
-  modules only.
+  `frontend/tests/`: plain-TypeScript tests for pure logic plus Vitest/Testing
+  Library component coverage.
 
 Schedule changes must be followed by `ReminderScheduler.reload_jobs()` so the
 in-memory cron jobs match the database. Reminder responses (bot or Mini App)
@@ -174,16 +178,19 @@ than silently running with the insecure default.
 ## Change Guidelines
 
 - Preserve the Russian, beginner-friendly user interface. Mini App typography
-  must respect the synchronized Small/Regular/Large text-size preference.
+  must respect the local Small/Regular/Large text-size preference.
 - Keep callback actions idempotent and avoid duplicate messages or side effects.
 - Put persistence and domain rules in services, not handlers or API routes.
 - Add or update focused tests for behavior changes (`tests/` for backend,
   `frontend/tests/` for pure-logic frontend modules).
 - Never expose `.env` values or commit secrets.
-- Mini App medicines are local-first + synced (last-write-wins by
-  `updated_at`). Real Telegram/backend history is server-authoritative and
-  tied to dispatch events. Demo/offline fallback history is isolated client
-  data and must never be uploaded or represented as a real dispatch response.
+- Mini App medicines and settings are local-authoritative. Medicines sync
+  last-write-wins by `updated_at` for reminder delivery and optional
+  cross-device recovery; only language/timezone/snooze/repeat settings cross
+  the network as a server reminder projection. Real Telegram/backend history
+  is server-authoritative and tied to dispatch events. Demo/offline fallback
+  history is isolated client data and must never be uploaded or represented as
+  a real dispatch response.
 - The Mini App schedule form remains daily-oriented even though the model can
   represent weekday selections.
 - Frontend coverage includes plain TypeScript/Node logic tests, Vitest/Testing

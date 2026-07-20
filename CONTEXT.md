@@ -101,7 +101,7 @@ and mounts these routes under `/api/v1`:
 - `GET /sync/bootstrap`
 - `PUT /sync/medicines/{client_medicine_id}`
 - `POST /sync/batch`
-- `GET` and `PATCH /settings/me`
+- `PATCH /reminders/config` (local settings' reminder-only runtime projection)
 - `GET /dashboard/today`
 - `GET /dashboard/adherence`
 - `GET /history`
@@ -116,7 +116,10 @@ Medicine synchronization is local-first and last-write-wins by `updated_at`.
 When a newer medicine payload wins, the server reconciles schedule slots in
 place (preserving unchanged IDs and historical dispatch links) and replaces the
 catalogue snapshot. Out-of-order client responses cannot overwrite newer local
-edits. Real history and adherence remain server-authoritative.
+edits. App settings are local-authoritative; language, timezone, snooze, and
+repeat mode are retried as a server reminder projection, while UI-only text
+size never crosses the network. Real history and adherence remain
+server-authoritative.
 
 `python -m app.catalog_update` resolves the latest hosted CSV through the
 `data.gov.ua` CKAN API, decodes its Windows-1251 semicolon format, validates it,
@@ -148,9 +151,11 @@ The main divisions are:
 - `src/contexts/`, `src/hooks/`, `src/components/`, and `src/pages/`: shared
   state, Telegram integration, reusable UI, and route pages.
 
-The dashboard exposes Taken/Skipped buttons when a server dose has an
-unresolved dispatch `event_id`. Real actionable doses use the API; local/demo
-fallback actions are recorded idempotently in isolated local storage. A newly
+The dashboard plan is built from local medicines; the server response overlays
+only dispatch status and cannot add or overwrite local medicine content. It
+exposes Taken/Skipped buttons when a matching server dose has an unresolved
+dispatch `event_id`. Real actionable doses use the API; local/demo fallback
+actions are recorded idempotently in isolated local storage. A newly
 created medicine includes only schedule slots at or after its creation minute
 on that first local day; earlier slots begin on the next applicable day.
 History can filter by status and by the response's current calendar day,
@@ -164,9 +169,10 @@ cards show compact identity/form/strength/dispensing information while
 retaining source attribution; catalogue data must never be converted into
 personalized dosage or treatment advice.
 
-Settings includes synchronized Small/Regular/Large typography presets that
-apply a font scale across the Mini App; the local preview preserves the same
-preference in localStorage. Settings also links to rating and bug-report forms.
+Settings lives in localStorage and includes Small/Regular/Large typography
+presets that apply a font scale across the Mini App. Only reminder-relevant
+language/timezone/snooze/repeat values are projected to the backend. Settings
+also links to rating and bug-report forms.
 Authenticated submissions are
 stored in the backend and relayed best-effort to the configured Telegram forum
 chat (rating topic 3, bug topic 5). Bug reports accept an optional JPEG, PNG,
@@ -174,7 +180,9 @@ or WebP screenshot up to 8 MB. The frontend does not attach browser/device diagn
 
 Keep the source-of-truth split explicit:
 
-- Medicines: local-first, synchronized by client UUID and timestamp.
+- Medicines: local-authoritative, synchronized by client UUID and timestamp
+  for reminders and optional cross-device recovery.
+- Settings: local-authoritative; only the reminder runtime projection syncs.
 - Real history/adherence: server-authoritative and tied to dispatch events.
 - Demo/fallback history: isolated local data, never sent as a real dispatch
   response.

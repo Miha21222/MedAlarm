@@ -23,7 +23,7 @@ async def _authenticated_client(db_session, user: User) -> AsyncClient:
 
 
 @pytest.mark.asyncio
-async def test_settings_routes_patch_and_validate(db_session):
+async def test_reminder_config_projection_patch_and_validate(db_session):
     user = User(telegram_id=51001, timezone="UTC")
     db_session.add(user)
     await db_session.flush()
@@ -35,22 +35,32 @@ async def test_settings_routes_patch_and_validate(db_session):
     await db_session.flush()
     client = await _authenticated_client(db_session, user)
     try:
-        current = await client.get("/api/v1/settings/me")
+        legacy_settings = await client.get("/api/v1/settings/me")
         updated = await client.patch(
-            "/api/v1/settings/me",
-            json={"language": "uk", "text_size": "large", "default_snooze_minutes": 20},
+            "/api/v1/reminders/config",
+            json={
+                "language": "uk",
+                "timezone": "Europe/Kyiv",
+                "default_snooze_minutes": 20,
+                "remind_until_confirmed": False,
+            },
         )
-        invalid = await client.patch("/api/v1/settings/me", json={"timezone": "Not/A_Zone"})
+        invalid = await client.patch("/api/v1/reminders/config", json={"timezone": "Not/A_Zone"})
     finally:
         await client.aclose()
         app.dependency_overrides.clear()
 
-    assert current.status_code == 200
+    assert legacy_settings.status_code == 404
     assert updated.status_code == 200
-    assert updated.json()["language"] == "uk"
-    assert updated.json()["text_size"] == "large"
-    assert user.default_snooze_minutes == 20
+    assert updated.json() == {
+        "language": "uk",
+        "timezone": "Europe/Kyiv",
+        "default_snooze_minutes": 20,
+        "remind_until_confirmed": False,
+    }
+    assert user.text_size == "regular"
     assert medicine.schedules[0].snooze_minutes == 20
+    assert medicine.schedules[0].remind_until_confirmed is False
     assert invalid.status_code == 422
 
 
@@ -58,6 +68,14 @@ async def test_settings_routes_patch_and_validate(db_session):
 async def test_medicine_sync_bootstrap_and_id_validation(db_session):
     user = User(telegram_id=51002, timezone="UTC")
     db_session.add(user)
+    await db_session.flush()
+    server_only = Medicine(
+        user_id=user.id,
+        client_medicine_id="server-only-medicine",
+        name="Server medicine",
+        dosage_text="1",
+    )
+    db_session.add(server_only)
     await db_session.flush()
     client = await _authenticated_client(db_session, user)
     payload = {
@@ -84,9 +102,15 @@ async def test_medicine_sync_bootstrap_and_id_validation(db_session):
     assert synced.status_code == 200
     assert synced.json()["applied"] is True
     assert bootstrap.status_code == 200
-    assert bootstrap.json()["medicines"][0]["client_medicine_id"] == "http-test-medicine"
+    assert {item["client_medicine_id"] for item in bootstrap.json()["medicines"]} == {
+        "http-test-medicine",
+        "server-only-medicine",
+    }
     assert batch.status_code == 200
-    assert batch.json()["items"][0]["applied"] is False
+    assert {item["client_medicine_id"] for item in batch.json()["medicines"]} == {
+        "http-test-medicine",
+        "server-only-medicine",
+    }
 
 
 @pytest.mark.asyncio
@@ -141,7 +165,16 @@ async def test_dashboard_reminder_action_history_and_adherence_routes(db_session
         app.dependency_overrides.clear()
 
     assert dashboard.status_code == 200
-    assert any(item["event_id"] == dispatch.event_id for item in dashboard.json()["items"])
+    dashboard_item = next(item for item in dashboard.json()["items"] if item["event_id"] == dispatch.event_id)
+    assert set(dashboard_item) == {
+        "client_medicine_id",
+        "time",
+        "days_of_week",
+        "scheduled_at",
+        "status",
+        "event_id",
+        "actionable",
+    }
     assert action.status_code == 200
     assert action.json()["status"] == "taken"
     assert repeated.status_code == 200

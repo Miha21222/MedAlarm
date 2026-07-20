@@ -239,7 +239,7 @@ async def test_manual_and_catalogue_medicines_share_sync_and_dashboard_rules(db_
 
 
 @pytest.mark.asyncio
-async def test_dashboard_today_serializes_schedules_after_fresh_database_load(db_session):
+async def test_dashboard_today_serializes_reminder_projection_after_fresh_database_load(db_session):
     user = User(telegram_id=8106, timezone="UTC")
     db_session.add(user)
     await db_session.flush()
@@ -267,7 +267,9 @@ async def test_dashboard_today_serializes_schedules_after_fresh_database_load(db
     payload = await dashboard_today(user=fresh_user, session=db_session)
 
     assert len(payload["items"]) == 1
-    assert payload["items"][0]["schedules"][0]["time"] == "16:00"
+    assert payload["items"][0]["time"] == "16:00"
+    assert payload["items"][0]["days_of_week"] == "*"
+    assert "name" not in payload["items"][0]
 
 
 @pytest.mark.asyncio

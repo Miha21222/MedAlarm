@@ -2,6 +2,7 @@ import {
   clearPendingSettingsIfCurrent,
   PENDING_SETTINGS_KEY,
   readPendingSettings,
+  reminderSettingsFrom,
   writePendingSettings,
 } from "../src/features/settingsSyncStorage";
 import type { UserSettings } from "../src/types";
@@ -24,14 +25,19 @@ const settings: UserSettings = {
   remind_until_confirmed: true,
 };
 
-writePendingSettings(settings, storage);
-assert(readPendingSettings(storage)?.text_size === "large", "pending settings should survive a reload");
+const reminderSettings = reminderSettingsFrom(settings);
+writePendingSettings(reminderSettings, storage);
+assert(readPendingSettings(storage)?.timezone === "Europe/Kyiv", "pending reminder settings should survive a reload");
 assert(
-  !clearPendingSettingsIfCurrent({ ...settings, text_size: "small" }, storage),
+  !clearPendingSettingsIfCurrent({ ...reminderSettings, timezone: "UTC" }, storage),
   "an older save must not clear a newer pending snapshot",
 );
-assert(readPendingSettings(storage)?.text_size === "large", "the newer pending snapshot should remain queued");
-assert(clearPendingSettingsIfCurrent(settings, storage), "the matching successful save should clear pending state");
+assert(readPendingSettings(storage)?.timezone === "Europe/Kyiv", "the newer pending snapshot should remain queued");
+assert(
+  !("text_size" in reminderSettings),
+  "UI-only text size must not enter the server reminder projection",
+);
+assert(clearPendingSettingsIfCurrent(reminderSettings, storage), "the matching successful save should clear pending state");
 assert(readPendingSettings(storage) === null, "cleared settings should not retry again");
 
 memory.set(PENDING_SETTINGS_KEY, JSON.stringify({ ...settings, default_snooze_minutes: "soon" }));
