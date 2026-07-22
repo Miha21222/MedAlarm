@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import select, update
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -99,7 +101,11 @@ class IntakeService:
                     scheduled_at=scheduled_at,
                     status=status,
                     event_id=dispatch.event_id if dispatch is not None else None,
-                    actionable=dispatch is not None and dispatch.resolved_at is None,
+                    actionable=(
+                        dispatch is not None
+                        and dispatch.resolved_at is None
+                        and dispatch.status in {"sent", "snoozed"}
+                    ),
                 )
             )
         doses.sort(key=lambda dose: (dose.scheduled_at, dose.schedule.id))
@@ -126,6 +132,71 @@ class IntakeService:
         session.add(dispatch)
         await session.flush()
         return dispatch
+
+    @staticmethod
+    async def claim_dispatch(
+        session: AsyncSession,
+        *,
+        medicine_id: int,
+        schedule_id: int,
+        scheduled_ts: int,
+        chat_id: int,
+        lease_seconds: int = 120,
+    ) -> tuple[ReminderDispatchLog, bool]:
+        """Create and own one schedule occurrence without a duplicate-send race."""
+        now = datetime.now(UTC)
+        event_id = str(uuid.uuid4())
+        claim_token = str(uuid.uuid4())
+        values = {
+            "event_id": event_id,
+            "medicine_id": medicine_id,
+            "schedule_id": schedule_id,
+            "scheduled_ts": scheduled_ts,
+            "status": "sending",
+            "chat_id": chat_id,
+            "claim_token": claim_token,
+            "claim_expires_at": now + timedelta(seconds=lease_seconds),
+            "attempt_count": 1,
+            "last_attempt_at": now,
+            "sent_at": now,
+        }
+        statement = sqlite_insert(ReminderDispatchLog).values(**values)
+        statement = statement.on_conflict_do_nothing(
+            index_elements=["schedule_id", "scheduled_ts"]
+        )
+        inserted = await session.execute(statement)
+        dispatch = await session.scalar(
+            select(ReminderDispatchLog).where(
+                ReminderDispatchLog.schedule_id == schedule_id,
+                ReminderDispatchLog.scheduled_ts == scheduled_ts,
+            )
+        )
+        if dispatch is None:  # pragma: no cover - defensive transaction check
+            raise RuntimeError("dispatch claim was not visible after insert")
+        return dispatch, inserted.rowcount == 1 and dispatch.event_id == event_id
+
+    @staticmethod
+    async def mark_expired_dispatch_claims_uncertain(
+        session: AsyncSession,
+        *,
+        now: datetime | None = None,
+    ) -> int:
+        result = await session.execute(
+            update(ReminderDispatchLog)
+            .where(
+                ReminderDispatchLog.status == "sending",
+                ReminderDispatchLog.snoozed_until.is_(None),
+                ReminderDispatchLog.claim_expires_at <= (now or datetime.now(UTC)),
+            )
+            .values(
+                status="uncertain",
+                claim_token=None,
+                claim_expires_at=None,
+                last_error="dispatch claim expired before delivery acknowledgement",
+            )
+            .execution_options(synchronize_session=False)
+        )
+        return result.rowcount
 
     @staticmethod
     async def get_dispatch(

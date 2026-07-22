@@ -74,7 +74,10 @@ async def test_send_reminder_sends_message_without_lazy_loading_error(monkeypatc
     scheduler._bot = bot
 
     await scheduler._send_reminder(medicine_id=medicine_id, schedule_id=schedule_id)
+    await scheduler._send_reminder(medicine_id=medicine_id, schedule_id=schedule_id)
 
+    # The normalized schedule occurrence is claimed once even if overlapping
+    # scheduler instances execute the same cron callback.
     assert len(bot.messages) == 1
     callback_data = bot.messages[0]["reply_markup"].inline_keyboard[0][0].callback_data
     assert callback_data is not None
@@ -92,6 +95,9 @@ async def test_send_reminder_sends_message_without_lazy_loading_error(monkeypatc
     assert dispatch_logs[0].scheduled_ts == scheduled_ts
     assert dispatch_logs[0].chat_id == 555001
     assert dispatch_logs[0].message_id == 1
+    assert dispatch_logs[0].status == "sent"
+    assert dispatch_logs[0].attempt_count == 1
+    assert dispatch_logs[0].claim_token is None
 
     assert bot.messages[0]["text"]
     assert "15:27" in bot.messages[0]["text"]
@@ -131,7 +137,7 @@ async def test_snooze_is_restored_and_cleared_after_delivery(monkeypatch):
             status="snoozed",
             chat_id=user.telegram_id,
             message_id=42,
-            snoozed_until=datetime.now(UTC) + timedelta(minutes=5),
+            snoozed_until=datetime.now(UTC) - timedelta(seconds=1),
         )
         session.add(dispatch)
         await session.commit()
@@ -150,10 +156,7 @@ async def test_snooze_is_restored_and_cleared_after_delivery(monkeypatch):
     scheduler = ReminderScheduler()
     scheduler._bot = FakeBot()
 
-    await scheduler.restore_snoozes()
-    assert [job.id for job in scheduler._scheduler.get_jobs()] == ["snooze:evt-restored-snooze"]
-
-    await scheduler._send_snoozed_reminder("evt-restored-snooze")
+    await scheduler.process_due_snoozes()
     async with session_factory() as session:
         restored = await session.scalar(
             select(ReminderDispatchLog).where(ReminderDispatchLog.event_id == "evt-restored-snooze")
@@ -161,6 +164,8 @@ async def test_snooze_is_restored_and_cleared_after_delivery(monkeypatch):
     assert restored is not None
     assert restored.status == "sent"
     assert restored.snoozed_until is None
+    assert restored.attempt_count == 1
+    assert restored.claim_token is None
     assert scheduler._bot.messages == []
     assert len(scheduler._bot.edits) == 1
     assert scheduler._bot.edits[0]["chat_id"] == 555002

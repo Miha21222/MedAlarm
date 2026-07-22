@@ -35,6 +35,25 @@ export function mergeReminderState(local: TodayItem[], remote: ReminderEventStat
   });
 }
 
+export function prepareTodayPlanForRefresh(
+  localPlan: TodayItem[],
+  current: TodayItem[],
+  authenticated: boolean,
+): TodayItem[] {
+  return localPlan.map((item) => {
+    const verified = current.find((existing) => existing.dose_key === item.dose_key && existing.event_id);
+    if (verified) {
+      return {
+        ...item,
+        status: verified.status,
+        event_id: verified.event_id,
+        actionable: verified.actionable,
+      };
+    }
+    return authenticated ? { ...item, actionable: false } : item;
+  });
+}
+
 export function buildTodayPlan(
   medicines: Medicine[],
   timezone: string,

@@ -1,4 +1,4 @@
-import { buildTodayPlan, mergeReminderState } from "../src/features/dashboard/todayPlan";
+import { buildTodayPlan, mergeReminderState, prepareTodayPlanForRefresh } from "../src/features/dashboard/todayPlan";
 import type { Medicine } from "../src/types";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -79,6 +79,16 @@ assert(!merged.some((item) => item.client_medicine_id === "server-only"), "serve
 assert(
   merged.find((item) => item.dose_key.endsWith("21:00"))?.actionable === false,
   "a local dose without a real dispatch must not expose server actions",
+);
+const initialAuthenticatedPlan = prepareTodayPlanForRefresh(plan, [], true);
+assert(
+  initialAuthenticatedPlan.every((item) => !item.actionable),
+  "authenticated dashboard actions stay hidden until the server verifies a dispatch",
+);
+const refreshedPlan = prepareTodayPlanForRefresh(plan, merged, true);
+assert(
+  refreshedPlan.find((item) => item.dose_key === mergedNine?.dose_key)?.actionable === true,
+  "a verified action remains stable while dashboard state refreshes",
 );
 
 const creationTime = new Date("2026-07-07T12:00:30.000Z"); // 15:00 in Kyiv

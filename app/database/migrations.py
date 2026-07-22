@@ -54,6 +54,14 @@ async def ensure_sqlite_compatibility(connection: AsyncConnection) -> None:
             "message_id": "INTEGER",
             "resolved_at": "DATETIME",
             "snoozed_until": "DATETIME",
+            "claim_token": "VARCHAR(64)",
+            "claim_expires_at": "DATETIME",
+            "attempt_count": "INTEGER DEFAULT 0",
+            "last_attempt_at": "DATETIME",
+            "last_error": "TEXT",
+            "recovery_action": "VARCHAR(16)",
+            "recovery_note": "TEXT",
+            "recovered_at": "DATETIME",
         },
     )
     await _add_columns(
@@ -64,6 +72,9 @@ async def ensure_sqlite_compatibility(connection: AsyncConnection) -> None:
 
     await connection.execute(
         text("UPDATE medicines SET updated_at = CURRENT_TIMESTAMP WHERE updated_at IS NULL")
+    )
+    await connection.execute(
+        text("UPDATE reminder_dispatch_logs SET attempt_count = 0 WHERE attempt_count IS NULL")
     )
     # Account settings are authoritative for snooze duration. Normalize rows
     # created by older releases without recreating schedules, medicines, or
@@ -112,8 +123,26 @@ async def ensure_sqlite_compatibility(connection: AsyncConnection) -> None:
     )
     await connection.execute(
         text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_dispatch_schedule_occurrence "
+            "ON reminder_dispatch_logs(schedule_id, scheduled_ts)"
+        )
+    )
+    await connection.execute(
+        text(
             "CREATE INDEX IF NOT EXISTS ix_reminder_dispatch_logs_snoozed_until "
             "ON reminder_dispatch_logs(snoozed_until)"
+        )
+    )
+    await connection.execute(
+        text(
+            "CREATE INDEX IF NOT EXISTS ix_reminder_dispatch_logs_claim_expires_at "
+            "ON reminder_dispatch_logs(claim_expires_at)"
+        )
+    )
+    await connection.execute(
+        text(
+            "CREATE INDEX IF NOT EXISTS ix_reminder_dispatch_logs_claim_token "
+            "ON reminder_dispatch_logs(claim_token)"
         )
     )
     await connection.execute(

@@ -3,7 +3,19 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint, func
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Integer,
+    JSON,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -15,7 +27,7 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    telegram_id: Mapped[int] = mapped_column(Integer, unique=True, index=True)
+    telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
     username: Mapped[str | None] = mapped_column(String(64), nullable=True)
     first_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
     last_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -35,7 +47,7 @@ class Medicine(Base):
     __table_args__ = (UniqueConstraint("user_id", "client_medicine_id", name="uq_medicine_user_client_id"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     client_medicine_id: Mapped[str] = mapped_column(
         String(64), default=lambda: str(uuid.uuid4()), index=True
     )
@@ -91,12 +103,26 @@ class CatalogMetadata(Base):
     record_count: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class SchedulerState(Base):
+    __tablename__ = "scheduler_state"
+    __table_args__ = (
+        CheckConstraint("id = 1", name="ck_scheduler_state_singleton"),
+        CheckConstraint("generation >= 0", name="ck_scheduler_state_generation"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    generation: Mapped[int] = mapped_column(BigInteger, default=0)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
+    )
+
+
 class MedicineSchedule(Base):
     __tablename__ = "medicine_schedules"
     __table_args__ = (UniqueConstraint("medicine_id", "time", "days_of_week", name="uq_schedule_slot"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    medicine_id: Mapped[int] = mapped_column(ForeignKey("medicines.id"), index=True)
+    medicine_id: Mapped[int] = mapped_column(ForeignKey("medicines.id", ondelete="CASCADE"), index=True)
     time: Mapped[str] = mapped_column(String(5))
     days_of_week: Mapped[str] = mapped_column(String(32), default="*")
     snooze_minutes: Mapped[int] = mapped_column(Integer, default=10)
@@ -113,12 +139,15 @@ class MedicineSchedule(Base):
 
 class IntakeLog(Base):
     __tablename__ = "intake_logs"
-    __table_args__ = (UniqueConstraint("reminder_event_id", name="uq_intake_reminder_event"),)
+    __table_args__ = (
+        UniqueConstraint("reminder_event_id", name="uq_intake_reminder_event"),
+        CheckConstraint("status IN ('taken', 'skipped', 'missed')", name="ck_intake_status"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    medicine_id: Mapped[int] = mapped_column(ForeignKey("medicines.id"), index=True)
+    medicine_id: Mapped[int] = mapped_column(ForeignKey("medicines.id", ondelete="CASCADE"), index=True)
     reminder_event_id: Mapped[int | None] = mapped_column(
-        ForeignKey("reminder_dispatch_logs.id"), nullable=True, index=True
+        ForeignKey("reminder_dispatch_logs.id", ondelete="CASCADE"), nullable=True, index=True
     )
     scheduled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String(16))
@@ -129,21 +158,40 @@ class IntakeLog(Base):
 
 class ReminderDispatchLog(Base):
     __tablename__ = "reminder_dispatch_logs"
+    __table_args__ = (
+        UniqueConstraint("schedule_id", "scheduled_ts", name="uq_dispatch_schedule_occurrence"),
+        CheckConstraint(
+            "status IN ('pending', 'sending', 'sent', 'snoozed', 'taken', 'skipped', 'failed', 'uncertain')",
+            name="ck_dispatch_status",
+        ),
+        CheckConstraint(
+            "recovery_action IS NULL OR recovery_action IN ('confirmed_sent', 'confirmed_failed')",
+            name="ck_dispatch_recovery_action",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     event_id: Mapped[str] = mapped_column(
         String(64), unique=True, default=lambda: str(uuid.uuid4()), index=True
     )
-    medicine_id: Mapped[int] = mapped_column(ForeignKey("medicines.id"), index=True)
+    medicine_id: Mapped[int] = mapped_column(ForeignKey("medicines.id", ondelete="CASCADE"), index=True)
     schedule_id: Mapped[int | None] = mapped_column(
-        ForeignKey("medicine_schedules.id"), nullable=True, index=True
+        ForeignKey("medicine_schedules.id", ondelete="SET NULL"), nullable=True, index=True
     )
-    scheduled_ts: Mapped[int] = mapped_column(Integer, index=True)
+    scheduled_ts: Mapped[int] = mapped_column(BigInteger, index=True)
     status: Mapped[str] = mapped_column(String(16), default="sent")
-    chat_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    chat_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     message_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     snoozed_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    claim_token: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    claim_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    recovery_action: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    recovery_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    recovered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     medicine: Mapped[Medicine] = relationship(back_populates="reminder_dispatch_logs")
@@ -152,9 +200,13 @@ class ReminderDispatchLog(Base):
 
 class Feedback(Base):
     __tablename__ = "feedback"
+    __table_args__ = (
+        CheckConstraint("kind IN ('rating', 'bug')", name="ck_feedback_kind"),
+        CheckConstraint("rating IS NULL OR rating BETWEEN 1 AND 5", name="ck_feedback_rating"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     kind: Mapped[str] = mapped_column(String(16), index=True)
     rating: Mapped[int | None] = mapped_column(Integer, nullable=True)
     message: Mapped[str | None] = mapped_column(Text, nullable=True)

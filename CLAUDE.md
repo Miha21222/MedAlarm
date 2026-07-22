@@ -23,7 +23,7 @@ MedAlarm — a Telegram bot (Russian-language UI) that reminds users to take med
   `deploy/README.md` contains the production-readiness checklist.
 - `README.md` has a legacy Russian section that can appear as mojibake in some
   read surfaces. Do not reproduce the broken encoding.
-- `POCKETMIND_REFERENCE.md` is design background, not authoritative MedAlarm
+- `docs/reference/POCKETMIND.md` is design background, not authoritative MedAlarm
   behavior.
 
 ## Commands

@@ -228,7 +228,11 @@ async def patch_reminder_config(
     if payload.timezone is not None:
         if not validate_timezone(payload.timezone):
             raise HTTPException(status_code=422, detail="Invalid IANA timezone")
-        user.timezone = payload.timezone
+        updated_user = await UserService.update_timezone(
+            session, user.telegram_id, payload.timezone
+        )
+        if updated_user is not None:
+            user = updated_user
     if payload.language is not None:
         user.language = payload.language
     if payload.default_snooze_minutes is not None:

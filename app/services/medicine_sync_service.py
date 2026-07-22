@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database.models import Medicine, MedicineSchedule, User
+from app.services.schedule_service import ScheduleService
 
 
 def _utc(value: datetime) -> datetime:
@@ -110,4 +111,5 @@ class MedicineSyncService:
                 )
             )
         await session.flush()
+        await ScheduleService.bump_generation(session)
         return True, medicine

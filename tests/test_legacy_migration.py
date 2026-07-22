@@ -74,8 +74,30 @@ async def test_legacy_sqlite_tables_receive_fullstack_columns(tmp_path):
                 await connection.execute(text("PRAGMA table_info(reminder_dispatch_logs)"))
             ).all()
         }
+        dispatch_indexes = {
+            row[1]
+            for row in (
+                await connection.execute(text("PRAGMA index_list(reminder_dispatch_logs)"))
+            ).all()
+        }
 
     await engine.dispose()
     assert migrated_snooze_minutes == 25
     assert {"client_medicine_id", "updated_at", "deleted_at"} <= medicine_columns
-    assert {"event_id", "status", "chat_id", "message_id", "resolved_at", "snoozed_until"} <= dispatch_columns
+    assert {
+        "event_id",
+        "status",
+        "chat_id",
+        "message_id",
+        "resolved_at",
+        "snoozed_until",
+        "claim_token",
+        "claim_expires_at",
+        "attempt_count",
+        "last_attempt_at",
+        "last_error",
+        "recovery_action",
+        "recovery_note",
+        "recovered_at",
+    } <= dispatch_columns
+    assert "uq_dispatch_schedule_occurrence" in dispatch_indexes

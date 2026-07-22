@@ -4,6 +4,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.models import Medicine, MedicineSchedule, User
+from app.services.schedule_service import ScheduleService
 
 
 class UserService:
@@ -43,7 +44,9 @@ class UserService:
         user = await UserService.get_by_telegram_id(session, telegram_id)
         if user is None:
             return None
-        user.timezone = timezone_name
+        if user.timezone != timezone_name:
+            user.timezone = timezone_name
+            await ScheduleService.bump_generation(session)
         return user
 
     @staticmethod

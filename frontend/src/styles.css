@@ -321,6 +321,8 @@ textarea { resize: vertical; }
 .text-size-sample.large { font-size: 22px; }
 .settings-divider { height: 1px; background: rgba(7,59,111,.09); }
 .settings-support-links { display: grid; gap: 10px; }
+.settings-danger-zone { display: grid; gap: 9px; }
+.settings-danger-zone > small { color: var(--muted); font-size: 11px; line-height: 1.4; }
 .settings-section-title { color: var(--muted); font: 800 11px "Manrope"; text-transform: uppercase; letter-spacing: .05em; }
 .settings-link {
   display: grid;

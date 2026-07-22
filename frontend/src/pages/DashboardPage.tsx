@@ -2,13 +2,14 @@ import { CalendarDays, Check, Clock3, Pill, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchToday } from "../api/dashboard";
+import { hasAuthToken } from "../api/client";
 import { resolveReminderAction } from "../api/reminderActions";
 import { EmptyState } from "../components/EmptyState";
 import { SectionHeader } from "../components/SectionHeader";
 import { useAppSettings } from "../contexts/AppSettingsContext";
 import { useToast } from "../contexts/ToastContext";
 import { useDemoModeEnabled } from "../features/demo/demoMode";
-import { buildTodayPlan } from "../features/dashboard/todayPlan";
+import { buildTodayPlan, prepareTodayPlanForRefresh } from "../features/dashboard/todayPlan";
 import { useMedicinesAllQuery } from "../features/medicines/cache";
 import { sortMedicines } from "../features/medicines/localMedicines";
 import type { DoseStatus, Medicine, TodayItem } from "../types";
@@ -28,7 +29,8 @@ export function DashboardPage() {
 
   useEffect(() => {
     let active = true;
-    setToday(buildTodayPlan(medicines, settings.timezone));
+    const localPlan = buildTodayPlan(medicines, settings.timezone);
+    setToday((current) => prepareTodayPlanForRefresh(localPlan, current, hasAuthToken()));
     void fetchToday(medicines, settings.timezone)
       .then((items) => {
         if (active) setToday(items);

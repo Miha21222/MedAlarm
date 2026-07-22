@@ -4,9 +4,9 @@ from aiogram import F, Router
 from aiogram.types import CallbackQuery
 
 from app.database.session import session_scope
-from app.scheduler.setup import get_scheduler
 from app.services.intake_service import IntakeService
 from app.services.reminder_action_service import ReminderActionService
+from app.services.snooze_service import SnoozeService
 from app.services.user_service import UserService
 
 router = Router()
@@ -49,19 +49,18 @@ async def reminder_action(callback: CallbackQuery) -> None:
         return
 
     if action == "snooze":
-        scheduler = get_scheduler()
-        if scheduler is None:
-            await callback.answer("Отложить сейчас не удалось. Попробуйте ещё раз.", show_alert=True)
-            return
         # Resolve the account setting at click time as well, so callbacks from
         # reminders created before a settings change use the current default.
+        # Only durable database state crosses from the bot to the scheduler.
         minutes = user.default_snooze_minutes
         try:
-            await scheduler.schedule_snooze(
-                event_id=dispatch.event_id,
-                user_id=user.id,
-                minutes=minutes,
-            )
+            async with session_scope() as session:
+                await SnoozeService.request(
+                    session,
+                    event_id=dispatch.event_id,
+                    user_id=user.id,
+                    minutes=minutes,
+                )
         except LookupError:
             await callback.answer("Это напоминание уже недействительно.", show_alert=True)
             return

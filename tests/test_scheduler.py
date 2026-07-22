@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from app.database.models import MedicineSchedule
 from app.scheduler.jobs import ReminderScheduler
@@ -40,14 +40,13 @@ def test_scheduler_creates_weekday_jobs():
     }
 
 
-def test_recurring_reload_does_not_remove_snooze_job():
-    scheduler = ReminderScheduler()
-    scheduler._schedule_snooze_job("evt-1", datetime.now(UTC) + timedelta(minutes=5))
-    schedule = MedicineSchedule(id=3, medicine_id=300, time="09:15", days_of_week="*")
-    scheduler._schedule_row(schedule, "UTC")
+def test_dispatch_identity_uses_intended_timezone_occurrence():
+    schedule = MedicineSchedule(id=3, medicine_id=300, time="08:30", days_of_week="*")
 
-    for job in scheduler._scheduler.get_jobs():
-        if job.id.startswith("schedule:"):
-            job.remove()
+    occurrence = ReminderScheduler._scheduled_occurrence_ts(
+        schedule,
+        "Europe/Kyiv",
+        datetime(2026, 1, 10, 6, 31, 45, tzinfo=UTC),
+    )
 
-    assert [job.id for job in scheduler._scheduler.get_jobs()] == ["snooze:evt-1"]
+    assert occurrence == int(datetime(2026, 1, 10, 6, 30, tzinfo=UTC).timestamp())

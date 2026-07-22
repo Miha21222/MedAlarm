@@ -14,4 +14,5 @@ frontend/playwright-report/
 frontend/test-results/
 .playwright-cli/
 .tmp-pytest*/
+.tmp/
 .codegraph/

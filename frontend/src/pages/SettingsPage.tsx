@@ -1,8 +1,10 @@
-import { Bug, Info, Star, Type } from "lucide-react";
+import { Bug, Info, Star, Trash2, Type } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchBackendVersion, FRONTEND_VERSION } from "../api/version";
 import { useAppSettings } from "../contexts/AppSettingsContext";
+import { resetLocalAppData } from "../features/resetLocalData";
+import { showConfirm } from "../telegramWebApp";
 import type { TextSize } from "../types";
 import { useHapticsEnabled } from "../utils/haptics";
 import { snoozeOptions, timezoneLabel, timezoneOptions } from "../utils/settingsOptions";
@@ -25,6 +27,10 @@ export function SettingsPage() {
       active = false;
     };
   }, []);
+
+  const clearLocalData = async () => {
+    if (await showConfirm(t("clearLocalDataConfirm"))) resetLocalAppData();
+  };
 
   const formatVersion = (version: string) => (version === "unknown" ? t("versionUnavailable") : `v${version}`);
   const versionStatus =
@@ -138,6 +144,15 @@ export function SettingsPage() {
               <small>{t("reportBugHint")}</small>
             </span>
           </Link>
+        </div>
+        <div className="settings-divider" />
+        <div className="settings-danger-zone">
+          <span className="settings-section-title">{t("localData")}</span>
+          <small>{t("clearLocalDataHint")}</small>
+          <button type="button" className="danger-btn full" onClick={() => void clearLocalData()}>
+            <Trash2 size={18} aria-hidden="true" />
+            {t("clearLocalData")}
+          </button>
         </div>
         <div className="settings-divider" />
         <div className="settings-version-panel">

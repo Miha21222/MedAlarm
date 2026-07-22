@@ -44,7 +44,7 @@ medical advice, dosage recommendations, or treatment changes.
   `deploy/README.md` contains the production-readiness checklist.
 - `README.md` has a legacy Russian section that can appear as mojibake in some
   read surfaces. Do not reproduce the broken encoding.
-- `POCKETMIND_REFERENCE.md` is design background, not a source of truth for
+- `docs/reference/POCKETMIND.md` is design background, not a source of truth for
   MedAlarm behavior.
 
 - `main.py`: load settings, initialize the database, create bot/dispatcher,
@@ -75,7 +75,7 @@ medical advice, dosage recommendations, or treatment changes.
 - `app/database/session.py`: async engine/session setup. Use `session_scope()`
   so successful operations commit and failures roll back.
 - `app/database/migrations.py`: `ensure_sqlite_compatibility()`, an additive,
-  idempotent, SQLite-only migration run on every `init_db()` (no Alembic).
+  idempotent SQLite migration run on every `init_db()` (no Alembic).
 - `app/scheduler/jobs.py`: APScheduler job creation, reminder delivery,
   dispatch logging, and one-off snoozes.
 - `app/scheduler/setup.py`: module-level scheduler getter/setter used by
@@ -126,9 +126,9 @@ medical advice, dosage recommendations, or treatment changes.
   `frontend/tests/`: plain-TypeScript tests for pure logic plus Vitest/Testing
   Library component coverage.
 
-Schedule changes must be followed by `ReminderScheduler.reload_jobs()` so the
-in-memory cron jobs match the database. Reminder responses (bot or Mini App)
-must remain tied to an existing dispatch record.
+Schedule and timezone changes must bump the durable scheduler generation; the
+periodic full fingerprint remains a recovery fallback. Reminder responses (bot or
+Mini App) must remain tied to an existing dispatch record.
 
 ## Commands
 
@@ -183,6 +183,8 @@ than silently running with the insecure default.
 - Preserve the Russian, beginner-friendly user interface. Mini App typography
   must respect the local Small/Regular/Large text-size preference.
 - Keep callback actions idempotent and avoid duplicate messages or side effects.
+  Bot snooze callbacks must persist durable state and must not call an in-process scheduler.
+  Never automatically resend an `uncertain` dispatch; use the audited recovery command after verification.
 - Put persistence and domain rules in services, not handlers or API routes.
 - Add or update focused tests for behavior changes (`tests/` for backend,
   `frontend/tests/` for pure-logic frontend modules).

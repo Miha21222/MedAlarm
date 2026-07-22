@@ -4,7 +4,7 @@ Last verified from the working tree: **2026-07-18**.
 
 This is the current-state handoff for contributors and coding agents. Read it
 with `AGENTS.md`, which contains the binding repository rules. Do not treat
-`PLAN.md` as proof of what is implemented; prefer current source and tests.
+`docs/legacy/PLAN.md` as proof of what is implemented; prefer current source and tests.
 
 The complete production-candidate change inventory is in `CHANGELOG.md`; the
 remaining release and infrastructure work is tracked in `deploy/README.md`.
@@ -35,8 +35,9 @@ migration races, then starts:
 - `uvicorn app.api.main:app` for the API on port 8000;
 - `python main.py` for the combined bot and scheduler.
 
-The bot and scheduler remain together because scheduled snoozes are held in
-the in-memory scheduler. Production is limited to one backend replica while it
+The bot and scheduler remain together in the current production Compose topology,
+although snoozes are now durable database state polled and leased by the scheduler
+rather than in-memory jobs. Production is limited to one backend replica while it
 uses SQLite and Telegram long polling. Compose persists `/app/data` in the
 `medalarm_data` volume and optionally starts the pinned `cloudflared` service
 through the `production` profile. `/ready` checks database readiness; `/health`
@@ -72,9 +73,13 @@ Local entrypoints:
   WAL mode so the API and bot/scheduler processes can safely share the file.
 - `ensure_sqlite_compatibility()` is the additive, idempotent SQLite migration
   mechanism; the project does not use Alembic.
-- Every schedule mutation must be followed by
-  `ReminderScheduler.reload_jobs()` so the database and in-memory cron jobs do
-  not diverge.
+- Schedule and timezone mutations bump a durable singleton generation. The
+  scheduler checks it every 15 seconds and retains a periodic full fingerprint
+  reconciliation as recovery; direct `reload_jobs()` remains available for the
+  combined process. Snooze callbacks persist `snoozed_until`, and the scheduler
+  claims due rows with expiring leases. Initial-send outcomes that cannot be
+  acknowledged become `uncertain` and are never automatically resent;
+  `python -m app.dispatch_recovery` provides audited operator resolution.
 
 The central relationships are `User -> Medicine -> MedicineSchedule`, with
 `IntakeLog` and `ReminderDispatchLog` attached to medicines. `Medicine` carries
@@ -220,7 +225,9 @@ npm run test:browser
 ```
 
 Backend tests cover services, HTTP API/auth/schema behavior, models/migrations,
-scheduling, reminder delivery, and Mini App keyboard integration. Frontend
+scheduling, durable generation reconciliation, snooze lease recovery, duplicate
+dispatch claiming, uncertain-send recovery, reminder delivery, and Mini App
+keyboard integration. Frontend
 coverage combines plain TypeScript/Node logic checks, Vitest/Testing Library
 component tests, and a Playwright browser smoke test.
 
@@ -232,7 +239,7 @@ component tests, and a Playwright browser smoke test.
   some read surfaces. Do not propagate that encoding into new docs.
 - Mini App schedule forms remain daily-oriented even though the model supports
   weekday selections.
-- `POCKETMIND_REFERENCE.md` is design background, not MedAlarm's source of
+- `docs/reference/POCKETMIND.md` is design background, not MedAlarm's source of
   truth.
 - If code and this snapshot diverge, update this file from code, tests,
   workflows, and deployment configuration in the same change.
